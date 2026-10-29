@@ -25,3 +25,6 @@ mygo-api-studio/settings.json
 
 # Logs
 *.log
+
+# WorkBuddy local project data (not part of the source)
+.workbuddy/
