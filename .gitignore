@@ -1,0 +1,27 @@
+# Build artifacts (produced by `go tool mygo build -o build`)
+/build/
+/out/
+/dist/
+/bin/
+
+# MyGo / Go
+*.exe
+!**/testdata/**/*.exe
+*.test
+*.out
+go.work
+go.work.sum
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Local settings exported by the app (if committed by mistake)
+nanoapi/settings.json
+mygo-api-studio/settings.json
+
+# Logs
+*.log

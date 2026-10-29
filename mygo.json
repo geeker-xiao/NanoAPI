@@ -1,0 +1,9 @@
+{
+  "name": "NanoAPI",
+  "slug": "nanoapi",
+  "identifier": "com.example.nanoapi",
+  "version": "1.0.0",
+  "icon": "resources/icon.png",
+  "main": "./cmd/nanoapi",
+  "out": "build"
+}

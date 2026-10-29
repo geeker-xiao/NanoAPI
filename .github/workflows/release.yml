@@ -1,0 +1,98 @@
+name: Release
+
+# Build NanoAPI for every desktop platform with MyGo and publish a GitHub
+# Release with the installers whenever a tag like `v1.2.3` is pushed.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows/amd64
+            out: windows-amd64
+            archive: zip
+          - os: macos-latest
+            platform: darwin/universal
+            out: darwin-universal
+            archive: tar
+          - os: ubuntu-latest
+            platform: linux/amd64
+            out: linux-amd64
+            archive: tar
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+
+      - name: Read version from mygo.json
+        id: version
+        shell: bash
+        run: |
+          ver=$(grep '"version"' mygo.json | head -1 | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "Building version $ver for ${{ matrix.platform }}"
+
+      - name: Build with MyGo
+        # MyGo needs no cgo, so any platform can be compiled from any runner.
+        # However, the platform-specific packaging (NSIS installer on Windows,
+        # .dmg/.app on macOS, .deb on Linux) still requires the native runner.
+        run: go tool mygo build -platform ${{ matrix.platform }} -o build
+
+      - name: Package artifact (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build/${{ matrix.out }}\*" `
+            -DestinationPath "build/NanoAPI-${{ steps.version.outputs.version }}-${{ matrix.out }}.zip"
+
+      - name: Package artifact (tar.gz)
+        if: matrix.archive == 'tar'
+        shell: bash
+        run: |
+          tar -czf "build/NanoAPI-${{ steps.version.outputs.version }}-${{ matrix.out }}.tar.gz" \
+            -C "build/${{ matrix.out }}" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: build/NanoAPI-${{ steps.version.outputs.version }}-${{ matrix.out }}.*
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -laR artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          # Tag names already start with "v"; keep the version as the release title.
