@@ -90,12 +90,27 @@ type App struct {
 	GroupDeleteID         string
 
 	// The dialog that files the active request under a name.
-	SaveDialogOpen   bool
-	SaveDraftName    string
-	SaveDraftError   string
-	SavedSectionOpen bool
-	SavedDeleteOpen  bool
-	SavedDeleteID    string
+	SaveDialogOpen    bool
+	SaveDraftName     string
+	SaveDraftGroup    string
+	SaveDraftNewGroup string
+	SaveDraftError    string
+	SavedSectionOpen  bool
+	SavedDeleteOpen   bool
+	SavedDeleteID     string
+
+	// CloseToTray makes the window close button hide the app to the system
+	// tray instead of quitting. The tray itself is always created so the app
+	// can be restored or quit from there.
+	CloseToTray bool
+
+	// win and tray are kept so tray menu actions can show the window or quit.
+	win  *mygo.Window
+	tray *mygo.Tray
+
+	// forceQuit is set by the tray Quit action (and the close-to-quit path)
+	// so OnClose lets the window close instead of intercepting it.
+	forceQuit bool
 
 	update func(func())
 }
@@ -132,6 +147,46 @@ func main() {
 		app.HTMLPreview, _ = win.NewWebView(mygo.WebViewOptions{BackgroundColor: "light-dark(#ffffff, #1e1e1e)"})
 		app.update = win.Update
 		win.SetMinimumSize(980, 680)
+
+		// The close button either quits or hides to the tray, decided by the
+		// setting; the tray Quit action forces a real quit so OnClose does
+		// not intercept it.
+		win.OnClose(func(e *mygo.CloseEvent) {
+			if app.forceQuit {
+				return
+			}
+			if app.CloseToTray {
+				e.PreventDefault()
+				win.Hide()
+				return
+			}
+			// No tray redirection: quit for real. macOS keeps the app alive
+			// after the last window closes, so ask it to quit explicitly.
+			e.PreventDefault()
+			app.forceQuit = true
+			mygo.App.Quit()
+		})
+
+		// System tray: always present so the window can be restored or the
+		// app quit, whichever the close-button behaviour.
+		if tray, err := mygo.NewTray(mygo.TrayOptions{Icon: appIconPNG, ToolTip: "NanoAPI"}); err == nil {
+			app.tray = tray
+			tray.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+				{Label: "显示 NanoAPI", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
+					win.Show()
+					win.Focus()
+				}},
+				mygo.Separator(),
+				{Label: "退出 NanoAPI", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
+					app.quitApp()
+				}},
+			}))
+			tray.OnClick(func() {
+				win.Show()
+				win.Focus()
+			})
+		}
+
 		update := win.Update
 		startRequestAutosave(update, app.queueSaveRequests)
 	})
@@ -176,6 +231,13 @@ func (a *App) saveRequestDialogs(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, "Kept on this device with its URL, headers, query parameters and credential.").TextColor(t.TextMuted)
 			ui.Field(c, "Name", func() {
 				ui.TextInput(c, &a.SaveDraftName).Placeholder("Request name").Grow(1).AutoFocus()
+			})
+			ui.Field(c, "Group", func() {
+				ui.Select(c, &a.SaveDraftGroup, a.savedGroupOptions()).Grow(1)
+			})
+			ui.Textf(c, "Will be saved to group: %s", a.effectiveSaveGroup()).FontSize(12).TextColor(t.TextMuted)
+			ui.Field(c, "New group (optional)", func() {
+				ui.TextInput(c, &a.SaveDraftNewGroup).Placeholder("Type to create a new group; leave blank to use the selected one").Grow(1)
 			})
 			ui.Textf(c, "%s %s", tab.Method, shortURL(tab.URL)).FontSize(12).TextColor(t.TextMuted).SingleLine()
 			if a.SaveDraftError != "" {
@@ -307,48 +369,55 @@ func (a *App) urlField(c *ui.Context, t *ui.Theme) {
 
 func (a *App) sidebar(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Width(280).FillHeight().Gap(8).Padding(12).Background(t.Surface).Radius(14).Children(func() {
-		a.savedSection(c, t)
-		items := a.filteredHistory()
-		ui.Row(c).FillWidth().Children(func() {
-			ui.Text(c, "History").Bold()
-			ui.Spacer(c)
-			ui.Textf(c, "%d", len(items)).TextColor(t.TextMuted)
-		})
-		ui.SearchField(c, &a.HistorySearch).Label("Search request history")
-		a.groupSelect(c)
-		a.groupTools(c, t)
-		a.historyTools(c, t)
-		if len(items) == 0 {
-			message := "Requests you send will appear here."
-			if strings.TrimSpace(a.HistorySearch) != "" {
-				message = "No requests match this search."
-			}
-			ui.Text(c, message).FontSize(12).TextColor(t.TextMuted)
-		}
-		ui.Scroll(c).Grow(1).Children(func() {
-			for i := range items {
-				item := items[i]
-				key := item.ID
-				if key == "" {
-					key = fmt.Sprintf("fallback-%d", i)
+		// The whole sidebar scrolls as one when the window is too short to
+		// show the saved groups and the history at once, so neither is ever
+		// clipped.
+		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+			ui.Column(c).FillWidth().Gap(8).Children(func() {
+				a.savedSection(c, t)
+				items := a.filteredHistory()
+				ui.Row(c).FillWidth().Children(func() {
+					ui.Text(c, "History").Bold()
+					ui.Spacer(c)
+					ui.Textf(c, "%d", len(items)).TextColor(t.TextMuted)
+				})
+				ui.SearchField(c, &a.HistorySearch).Label("Search request history")
+				a.groupSelect(c)
+				a.groupTools(c, t)
+				a.historyTools(c, t)
+				if len(items) == 0 {
+					message := "Requests you send will appear here."
+					if strings.TrimSpace(a.HistorySearch) != "" {
+						message = "No requests match this search."
+					}
+					ui.Text(c, message).FontSize(12).TextColor(t.TextMuted)
 				}
-				button := ui.Button(c.Key(key), "").Label(item.Label).Tooltip(item.Label).FillWidth().Padding(8, 10).Children(func() {
-					ui.Row(c).FillWidth().Gap(6).Children(func() {
-						ui.Text(c, item.Request.Method).Bold().TextColor(methodColor(t, item.Request.Method)).SingleLine()
-						ui.Text(c, item.Status).TextColor(t.TextMuted).SingleLine()
-					})
-					ui.Text(c, compactURL(item.Request.URL)).FontSize(11).TextColor(t.TextMuted).SingleLine()
-					ui.Textf(c, "%s | %s", formatHistoryTime(item.RequestedAt), formatDuration(item.Duration)).FontSize(10).TextColor(t.TextMuted).SingleLine()
-					if item.GroupID != "" {
-						if group, ok := a.groupByID(item.GroupID); ok {
-							ui.Text(c, group.Name).FontSize(10).TextColor(t.TextMuted).SingleLine()
+				ui.Column(c).FillWidth().Children(func() {
+					for i := range items {
+						item := items[i]
+						key := item.ID
+						if key == "" {
+							key = fmt.Sprintf("fallback-%d", i)
+						}
+						button := ui.Button(c.Key(key), "").Label(item.Label).Tooltip(item.Label).FillWidth().Padding(8, 10).Children(func() {
+							ui.Row(c).FillWidth().Gap(6).Children(func() {
+								ui.Text(c, item.Request.Method).Bold().TextColor(methodColor(t, item.Request.Method)).SingleLine()
+								ui.Text(c, item.Status).TextColor(t.TextMuted).SingleLine()
+							})
+							ui.Text(c, compactURL(item.Request.URL)).FontSize(11).TextColor(t.TextMuted).SingleLine()
+							ui.Textf(c, "%s | %s", formatHistoryTime(item.RequestedAt), formatDuration(item.Duration)).FontSize(10).TextColor(t.TextMuted).SingleLine()
+							if item.GroupID != "" {
+								if group, ok := a.groupByID(item.GroupID); ok {
+									ui.Text(c, group.Name).FontSize(10).TextColor(t.TextMuted).SingleLine()
+								}
+							}
+						})
+						if button.Clicked() {
+							a.loadHistory(item)
 						}
 					}
 				})
-				if button.Clicked() {
-					a.loadHistory(item)
-				}
-			}
+			})
 		})
 	})
 }
@@ -373,20 +442,25 @@ func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 		a.requestBar(c, t)
 		ui.Divider(c)
 		coloredTabs(c, &tab.RequestTab, requestTabs, a.TabColor)
-		switch tab.RequestTab {
-		case 0:
-			a.keyValueEditor(c, t, "Query parameters", &tab.Params)
-		case 1:
-			a.headersEditor(c, t)
-		case 2:
-			a.authEditor(c, t)
-		case 3:
-			a.bodyEditor(c, t)
-		case 4:
-			a.uploadEditor(c, t)
-		case 5:
-			a.optionsEditor(c, t)
-		}
+		// The request body can grow long (many param/header rows), so it
+		// scrolls instead of stealing the room the response panel needs when
+		// the window is short.
+		ui.Scroll(c).FillWidth().MaxHeight(t.Rem(20)).Children(func() {
+			switch tab.RequestTab {
+			case 0:
+				a.keyValueEditor(c, t, "Query parameters", &tab.Params)
+			case 1:
+				a.headersEditor(c, t)
+			case 2:
+				a.authEditor(c, t)
+			case 3:
+				a.bodyEditor(c, t)
+			case 4:
+				a.uploadEditor(c, t)
+			case 5:
+				a.optionsEditor(c, t)
+			}
+		})
 		ui.Divider(c)
 		a.responsePanel(c, t)
 	})
@@ -595,18 +669,22 @@ func (a *App) responsePanel(c *ui.Context, t *ui.Theme) {
 		ui.Text(c, tab.Error).TextColor(t.Danger).Selectable()
 	}
 	coloredTabs(c, &tab.ResponseTab, []string{"Preview", "Body", "Headers", "Metadata"}, a.TabColor)
-	switch tab.ResponseTab {
-	case 0:
-		a.responsePreviewView(c, t)
-	case 1:
-		ui.TextArea(c, &tab.ResponseText).ReadOnly(true).Font("monospace").Grow(1).FillHeight().Placeholder("Send a request to see its response")
-	case 2:
-		ui.TextArea(c, &tab.HeadersText).ReadOnly(true).Font("monospace").Grow(1).FillHeight().Placeholder("Response headers")
-	case 3:
-		ui.Scroll(c).Grow(1).FillHeight().Children(func() {
-			ui.Text(c, a.metadataText()).Font("monospace").Selectable()
-		})
-	}
+	// Keep the response reachable at any window height: it always gets at
+	// least a little room and scrolls its own content.
+	ui.Column(c).Grow(1).FillWidth().MinHeight(t.Rem(8)).Children(func() {
+		switch tab.ResponseTab {
+		case 0:
+			a.responsePreviewView(c, t)
+		case 1:
+			ui.TextArea(c, &tab.ResponseText).ReadOnly(true).Font("monospace").Grow(1).FillHeight().Placeholder("Send a request to see its response")
+		case 2:
+			ui.TextArea(c, &tab.HeadersText).ReadOnly(true).Font("monospace").Grow(1).FillHeight().Placeholder("Response headers")
+		case 3:
+			ui.Scroll(c).Grow(1).FillHeight().Children(func() {
+				ui.Text(c, a.metadataText()).Font("monospace").Selectable()
+			})
+		}
+	})
 }
 
 func (a *App) send() {
@@ -779,6 +857,13 @@ func (a *App) saveResponse() {
 		tab.ResponseMeta = "Saved to " + shortPath(path)
 		tab.Error = ""
 	})
+}
+
+// quitApp quits the application for real, bypassing the close-to-tray
+// behaviour so the tray's Quit item always exits.
+func (a *App) quitApp() {
+	a.forceQuit = true
+	mygo.App.Quit()
 }
 
 func (a *App) publish(fn func()) {

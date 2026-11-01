@@ -3,6 +3,17 @@
 All notable changes to NanoAPI are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-11-01
+
+本次更新修复了窗口高度偏低时部分界面内容被裁剪、无法查看的问题，统一引入滚动容器。
+
+### 🐛 修复：矮窗口下的显示不全
+- **侧边栏（历史与保存分组）**：整条侧边栏改为单一滚动容器，保存的分组与历史列表随窗口高度自适应滚动，矮窗口下不再被裁掉。
+- **响应区（Response）**：请求体编辑器（Params / Headers / Auth / Body 等）限制最大高度并自带滚动，不再抢占响应文本区域空间；响应内容（Preview / Body / Headers / Metadata）改为带最小高度的滚动容器，任意窗口高度下都能完整显示并可滚动查看。
+
+### 📄 文档
+- README 发布示例 tag 更新为 `v1.0.2`。
+
 ## [1.0.1] - 2026-11-01
 
 本次更新带来大量新功能与界面重构：保存的请求、鉴权、请求体类型下拉、多标签页、外观设置，以及浅色主题迁移至 MoteDeck 风格并配套协调的暗色主题。

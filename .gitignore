@@ -28,3 +28,7 @@ mygo-api-studio/settings.json
 
 # WorkBuddy local project data (not part of the source)
 .workbuddy/
+
+# Python virtual environment (py_web test app)
+py_web/venv/
+py_web/__pycache__/

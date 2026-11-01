@@ -21,6 +21,7 @@ type settingsData struct {
 	BackgroundColor string  `json:"backgroundColor"`
 	TabColor        string  `json:"tabColor"`
 	TabBarDisplay   string  `json:"tabBarDisplay"`
+	CloseToTray     bool    `json:"closeToTray"`
 }
 
 func (a *App) settingsSnapshot() settingsData {
@@ -34,6 +35,7 @@ func (a *App) settingsSnapshot() settingsData {
 		BackgroundColor: hexColor(a.BackgroundColor),
 		TabColor:        hexColor(a.TabColor),
 		TabBarDisplay:   a.TabBarDisplay,
+		CloseToTray:     a.CloseToTray,
 	}
 }
 
@@ -84,6 +86,7 @@ func (a *App) loadSettings() {
 	case tabBarMultiLine, tabBarSingleLine:
 		a.TabBarDisplay = saved.TabBarDisplay
 	}
+	a.CloseToTray = saved.CloseToTray
 	if strings.HasPrefix(saved.BackgroundColor, "#") {
 		a.BackgroundColor = ui.Hex(saved.BackgroundColor)
 	}

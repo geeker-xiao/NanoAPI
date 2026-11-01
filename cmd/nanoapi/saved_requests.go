@@ -20,8 +20,11 @@ type SavedRequest struct {
 	ID string `json:"id"`
 	// TabID only appears in the list of open tabs: it is the tab's own id,
 	// kept apart from ID, which is the saved request this tab came from.
-	TabID     string     `json:"tabId,omitempty"`
-	Name      string     `json:"name"`
+	TabID string `json:"tabId,omitempty"`
+	Name  string `json:"name"`
+	// Group is the folder this request is filed under. Empty or missing means
+	// the default group when read back from disk.
+	Group     string     `json:"group,omitempty"`
 	Method    string     `json:"method"`
 	URL       string     `json:"url"`
 	Params    []KeyValue `json:"params,omitempty"`
@@ -46,6 +49,9 @@ type SavedRequest struct {
 	UpdatedAt time.Time `json:"updatedAt,omitempty"`
 }
 
+// defaultGroup is the group a request is filed under when none is chosen.
+const defaultGroup = "默认分组"
+
 // requestsFile is where saved requests and the restored tabs live.
 type requestsFile struct {
 	Saved  []SavedRequest `json:"saved,omitempty"`
@@ -66,6 +72,7 @@ func savedRequestFromTab(tab *Tab) SavedRequest {
 	return SavedRequest{
 		ID:              tab.SavedID,
 		Name:            strings.TrimSpace(tab.Name),
+		Group:           tab.Group,
 		Method:          tab.Method,
 		URL:             tab.URL,
 		Params:          cloneKV(tab.Params),
@@ -93,6 +100,7 @@ func savedRequestFromTab(tab *Tab) SavedRequest {
 func applySavedRequest(tab *Tab, saved SavedRequest) {
 	tab.SavedID = saved.ID
 	tab.Name = saved.Name
+	tab.Group = saved.Group
 	tab.Method = orMethod(saved.Method)
 	tab.URL = saved.URL
 	tab.Params = cloneKV(saved.Params)
@@ -270,7 +278,8 @@ func writeRequestsFile(file requestsFile) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-// savedSection lists the requests kept on this device, each ready to reopen.
+// savedSection lists the requests kept on this device, grouped by folder, each
+// ready to reopen.
 func (a *App) savedSection(c *ui.Context, t *ui.Theme) {
 	openID := ""
 	deleteID := ""
@@ -279,28 +288,34 @@ func (a *App) savedSection(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, "Save a request to keep it here.").FontSize(12).TextColor(t.TextMuted)
 			return
 		}
-		ui.Scroll(c).FillWidth().MaxHeight(t.Rem(11)).Children(func() {
-			ui.Column(c).FillWidth().Gap(4).Children(func() {
-				for _, saved := range a.SavedRequests {
-					ui.Row(c.Key(saved.ID)).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
-						item := ui.Button(c, "").Label(saved.Name).Tooltip(saved.Method+" "+shortURL(saved.URL)).Grow(1).Padding(6, 8).Radius(t.Radius).Children(func() {
-							ui.Row(c).FillWidth().Gap(6).Children(func() {
-								ui.Text(c, saved.Method).Bold().TextColor(methodColor(t, saved.Method)).SingleLine()
-								ui.Text(c, saved.Name).Grow(1).SingleLine()
+		// The sidebar scrolls as a whole, so the groups just flow here and
+		// stay reachable no matter how short the window is.
+		ui.Column(c).FillWidth().Gap(10).Children(func() {
+			for _, grp := range a.groupedSavedRequests() {
+				ui.Column(c).FillWidth().Gap(4).Children(func() {
+					ui.Text(c, fmt.Sprintf("%s  (%d)", grp.Name, len(grp.Items))).Bold().FontSize(12).TextColor(t.TextMuted)
+					for _, saved := range grp.Items {
+						s := saved
+						ui.Row(c.Key(s.ID)).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
+							item := ui.Button(c, "").Label(s.Name).Tooltip(s.Method+" "+shortURL(s.URL)).Grow(1).Padding(6, 8).Radius(t.Radius).Children(func() {
+								ui.Row(c).FillWidth().Gap(6).Children(func() {
+									ui.Text(c, s.Method).Bold().TextColor(methodColor(t, s.Method)).SingleLine()
+									ui.Text(c, s.Name).Grow(1).SingleLine()
+								})
+								ui.Text(c, shortURL(s.URL)).FontSize(11).TextColor(t.TextMuted).SingleLine()
 							})
-							ui.Text(c, shortURL(saved.URL)).FontSize(11).TextColor(t.TextMuted).SingleLine()
+							if item.Clicked() {
+								openID = s.ID
+							}
+							if ui.Button(c, "").Label("Delete saved request").Tooltip("Delete "+s.Name).Padding(4, 3).Radius(t.Radius).Children(func() {
+								ui.Icon(c, iconTrash).FontSize(12).TextColor(t.TextMuted)
+							}).Clicked() {
+								deleteID = s.ID
+							}
 						})
-						if item.Clicked() {
-							openID = saved.ID
-						}
-						if ui.Button(c, "").Label("Delete saved request").Tooltip("Delete "+saved.Name).Padding(4, 3).Radius(t.Radius).Children(func() {
-							ui.Icon(c, iconTrash).FontSize(12).TextColor(t.TextMuted)
-						}).Clicked() {
-							deleteID = saved.ID
-						}
-					})
-				}
-			})
+					}
+				})
+			}
 		})
 	})
 	if openID != "" {
@@ -330,8 +345,83 @@ func suggestRequestName(tab *Tab) string {
 func (a *App) openSaveDialog() {
 	tab := a.tab()
 	a.SaveDraftName = suggestRequestName(tab)
+	a.SaveDraftGroup = tab.Group
+	if a.SaveDraftGroup == "" {
+		a.SaveDraftGroup = defaultGroup
+	}
+	a.SaveDraftNewGroup = ""
 	a.SaveDraftError = ""
 	a.SaveDialogOpen = true
+}
+
+// savedGroupOptions lists the groups a request can be filed under: every group
+// already used by a saved request, plus the default one, plus whatever the
+// current draft has picked so the select always has a valid choice.
+func (a *App) savedGroupOptions() []string {
+	seen := make(map[string]bool)
+	opts := make([]string, 0, len(a.SavedRequests)+1)
+	add := func(g string) {
+		if g == "" || seen[g] {
+			return
+		}
+		seen[g] = true
+		opts = append(opts, g)
+	}
+	add(defaultGroup)
+	for _, s := range a.SavedRequests {
+		add(s.Group)
+	}
+	add(a.SaveDraftGroup)
+	return opts
+}
+
+// effectiveSaveGroup works out the group a request would land in from the
+// save draft: a typed new group wins, then the picked one, then the default.
+func (a *App) effectiveSaveGroup() string {
+	g := strings.TrimSpace(a.SaveDraftNewGroup)
+	if g == "" {
+		g = strings.TrimSpace(a.SaveDraftGroup)
+	}
+	if g == "" {
+		g = defaultGroup
+	}
+	return g
+}
+
+// savedGroupView is one group of saved requests as shown in the sidebar.
+type savedGroupView struct {
+	Name  string
+	Items []SavedRequest
+}
+
+// groupedSavedRequests orders the saved requests by group, with the default
+// group first, so the sidebar reads top to bottom by folder.
+func (a *App) groupedSavedRequests() []savedGroupView {
+	index := make(map[string]*savedGroupView)
+	order := make([]string, 0)
+	for _, s := range a.SavedRequests {
+		g := s.Group
+		if g == "" {
+			g = defaultGroup
+		}
+		if _, ok := index[g]; !ok {
+			index[g] = &savedGroupView{Name: g}
+			order = append(order, g)
+		}
+		index[g].Items = append(index[g].Items, s)
+	}
+	result := make([]savedGroupView, 0, len(order))
+	for _, g := range order {
+		result = append(result, *index[g])
+	}
+	for i, g := range result {
+		if g.Name == defaultGroup {
+			result = append(result[:i], result[i+1:]...)
+			result = append([]savedGroupView{g}, result...)
+			break
+		}
+	}
+	return result
 }
 
 // saveRequestDraft stores the active request under the drafted name.
@@ -351,9 +441,17 @@ func (a *App) saveRequestDraft() {
 	if tab.SavedID == "" {
 		tab.SavedID = fmt.Sprintf("req-%d", time.Now().UnixNano())
 	}
+	group := strings.TrimSpace(a.SaveDraftNewGroup)
+	if group == "" {
+		group = strings.TrimSpace(a.SaveDraftGroup)
+	}
+	if group == "" {
+		group = defaultGroup
+	}
 	saved := savedRequestFromTab(tab)
 	saved.ID = tab.SavedID
 	saved.Name = name
+	saved.Group = group
 	replaced := false
 	for i := range a.SavedRequests {
 		if a.SavedRequests[i].ID == saved.ID {
@@ -366,6 +464,7 @@ func (a *App) saveRequestDraft() {
 		a.SavedRequests = append(a.SavedRequests, saved)
 	}
 	tab.Name = name
+	tab.Group = group
 	sortSavedRequests(a.SavedRequests)
 	a.SaveDraftError = ""
 	a.SaveDialogOpen = false

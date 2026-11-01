@@ -135,6 +135,9 @@ func (a *App) appearanceEditor(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		}).Description("Image is cropped to cover the window; solid color remains available as a fallback.")
+		ui.Field(c, "关闭窗口时", func() {
+			ui.Checkbox(c, &a.CloseToTray, "最小化到系统托盘而不是退出").OnChange(a.queueSaveSettings)
+		}).Description("勾选后，点击关闭按钮会隐藏到系统托盘，之后可从托盘图标恢复窗口或退出应用；取消勾选则点击关闭直接退出。")
 	})
 }
 

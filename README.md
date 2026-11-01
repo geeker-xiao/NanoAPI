@@ -88,8 +88,8 @@ go tool mygo build -platform darwin/universal -o build
 发布新版本只需：
 
 ```sh
-git tag v1.0.1
-git push origin v1.0.1
+git tag v1.0.2
+git push origin v1.0.2
 ```
 
 版本号取自 `mygo.json` 中的 `version` 字段，发布前请同步修改它。

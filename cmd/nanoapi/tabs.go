@@ -19,6 +19,9 @@ type Tab struct {
 	// never been saved. Saving again updates that entry rather than adding one.
 	SavedID string
 	Name    string
+	// Group is the folder this tab's request belongs to once saved; it copies
+	// from and back into the saved request so the sidebar groups it correctly.
+	Group string
 
 	Method    string
 	URL       string
@@ -168,6 +171,41 @@ func (a *App) closeTab(index int) {
 	a.queueSaveRequests()
 }
 
+// duplicateTab copies the request at index into a fresh tab. The copy keeps the
+// same method, URL, parameters and options but starts unsaved, so duplicating a
+// saved request does not clobber the original entry.
+func (a *App) duplicateTab(index int) {
+	if index < 0 || index >= len(a.Tabs) {
+		return
+	}
+	src := a.Tabs[index]
+	copy := newTab()
+	copy.Method = src.Method
+	copy.URL = src.URL
+	copy.Params = cloneKV(src.Params)
+	copy.Headers = cloneKV(src.Headers)
+	copy.Auth = src.Auth
+	copy.UserAgent = src.UserAgent
+	copy.BodyMode = src.BodyMode
+	copy.Body = src.Body
+	copy.BodyRawType = src.BodyRawType
+	copy.rawKindApplied = src.rawKindApplied
+	copy.FormFields = cloneKV(src.FormFields)
+	copy.FileField = src.FileField
+	copy.FilePath = src.FilePath
+	copy.TimeoutSeconds = src.TimeoutSeconds
+	copy.TimeoutText = src.TimeoutText
+	copy.FollowRedirects = src.FollowRedirects
+	copy.Stream = src.Stream
+	copy.Download = src.Download
+	copy.DownloadPath = src.DownloadPath
+	copy.Group = src.Group
+	copy.Name = src.Name
+	a.Tabs = append(a.Tabs, copy)
+	a.ActiveTab = len(a.Tabs) - 1
+	a.queueSaveRequests()
+}
+
 // tabBar lists the open requests on the right pane, with a button to add one.
 // Two layouts are available and picked in the appearance settings: multi-line
 // wraps the tabs onto as many rows as they need and shows the method above the
@@ -177,6 +215,8 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme) {
 	single := a.TabBarDisplay == tabBarSingleLine
 	selectIndex := -1
 	closeIndex := -1
+	duplicateIndex := -1
+	resendIndex := -1
 	newTab := false
 
 	// Both layouts lay their children out left to right; they differ in what
@@ -198,6 +238,19 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme) {
 			if active {
 				chip.Background(t.Surface)
 			}
+			// Right-clicking a tab opens a menu to copy, re-send or close it.
+			chip.ContextMenu(func(m *ui.Menu) {
+				if m.Item("复制").Chosen() {
+					duplicateIndex = i
+				}
+				if m.Item("重新发起请求").Disabled(tab.Running).Chosen() {
+					resendIndex = i
+				}
+				m.Separator()
+				if m.Item("关闭").Chosen() {
+					closeIndex = i
+				}
+			})
 			chip.Children(func() {
 				a.tabButton(c, tab, i, single, &selectIndex)
 				// Single line has no room beside the chip, so the close
@@ -225,6 +278,15 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme) {
 
 	if selectIndex >= 0 {
 		a.ActiveTab = selectIndex
+	}
+	if duplicateIndex >= 0 {
+		a.duplicateTab(duplicateIndex)
+	}
+	if resendIndex >= 0 {
+		// Make the tab active first so its response lands on the tab the
+		// user clicked, then send it with the shared request path.
+		a.ActiveTab = resendIndex
+		a.send()
 	}
 	if closeIndex >= 0 {
 		a.closeTab(closeIndex)
