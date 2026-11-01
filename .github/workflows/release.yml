@@ -81,11 +81,32 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       # The version output lives in the build matrix job and cannot be read
       # here, so derive it from the pushed tag (v1.2.3 -> 1.2.3).
       - name: Derive version from tag
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # Pull the matching `## [x.y.z]` section out of CHANGELOG.md so the
+      # release notes live in the repo and never drift from what ships.
+      - name: Extract changelog for this version
+        run: |
+          ver="${{ steps.version.outputs.version }}"
+          awk -v v="$ver" '
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "^## \\[" v "\\]") { found = 1; print; next }
+            }
+            found { print }
+          ' CHANGELOG.md > changes.md
+          if [ ! -s changes.md ]; then
+            echo "No CHANGELOG entry for v$ver; falling back to generated notes." > changes.md
+          fi
+          echo "---- changes.md ----"
+          cat changes.md
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -100,5 +121,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: NanoAPI v${{ steps.version.outputs.version }}
+          body_path: changes.md
           files: artifacts/*
-          generate_release_notes: true
