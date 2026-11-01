@@ -28,18 +28,19 @@ func responsePreviewType(contentType string) string {
 }
 
 func (a *App) setResponsePreview(requestURL string, response *httpclient.Response) {
-	a.ResponseImage = nil
-	a.PreviewKind = previewNone
-	a.PreviewMessage = ""
-	a.PreviewKind = responsePreviewType(response.ContentType)
-	if a.PreviewKind == previewNone {
+	tab := a.tab()
+	tab.ResponseImage = nil
+	tab.PreviewKind = previewNone
+	tab.PreviewMessage = ""
+	tab.PreviewKind = responsePreviewType(response.ContentType)
+	if tab.PreviewKind == previewNone {
 		return
 	}
 	if response.Truncated {
-		a.PreviewMessage = "Preview unavailable because the response exceeds the in-memory preview limit."
+		tab.PreviewMessage = "Preview unavailable because the response exceeds the in-memory preview limit."
 		return
 	}
-	switch a.PreviewKind {
+	switch tab.PreviewKind {
 	case previewImage:
 		var image ui.ImageSource
 		var err error
@@ -49,13 +50,13 @@ func (a *App) setResponsePreview(requestURL string, response *httpclient.Respons
 			image, err = ui.DecodeBitmap(response.Body)
 		}
 		if err != nil {
-			a.PreviewMessage = "The image response could not be decoded: " + err.Error()
+			tab.PreviewMessage = "The image response could not be decoded: " + err.Error()
 			return
 		}
-		a.ResponseImage = image
+		tab.ResponseImage = image
 	case previewHTML:
 		if a.HTMLPreview == nil {
-			a.PreviewMessage = "HTML preview is unavailable in this window."
+			tab.PreviewMessage = "HTML preview is unavailable in this window."
 			return
 		}
 		a.HTMLPreview.Page().LoadHTML(preview.HTML(response.Body), requestURL)
@@ -63,21 +64,22 @@ func (a *App) setResponsePreview(requestURL string, response *httpclient.Respons
 }
 
 func (a *App) responsePreviewView(c *ui.Context, t *ui.Theme) {
-	if a.Response == nil {
+	tab := a.tab()
+	if tab.Response == nil {
 		ui.Text(c, "Send a request to see a visual preview.").TextColor(t.TextMuted)
 		return
 	}
-	if a.PreviewMessage != "" {
-		ui.Text(c, a.PreviewMessage).TextColor(t.Danger).Selectable()
+	if tab.PreviewMessage != "" {
+		ui.Text(c, tab.PreviewMessage).TextColor(t.Danger).Selectable()
 		return
 	}
-	switch a.PreviewKind {
+	switch tab.PreviewKind {
 	case previewImage:
-		if a.ResponseImage == nil {
+		if tab.ResponseImage == nil {
 			ui.Text(c, "Image preview is unavailable.").TextColor(t.TextMuted)
 			return
 		}
-		image := a.ResponseImage
+		image := tab.ResponseImage
 		ui.Box(c).Grow(1).FillHeight().Background(t.Surface).Border(1, t.Border).Radius(6).Draw(func(p *ui.Painter, r ui.Rect) {
 			p.Image(image, r, ui.Contain)
 		})

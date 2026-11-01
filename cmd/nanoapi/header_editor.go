@@ -25,6 +25,7 @@ var (
 )
 
 func (a *App) headerKeyValueEditor(c *ui.Context, t *ui.Theme) {
+	tab := a.tab()
 	ui.Row(c).FillWidth().Children(func() {
 		ui.Text(c, "Custom headers").Bold()
 		ui.Spacer(c)
@@ -32,7 +33,7 @@ func (a *App) headerKeyValueEditor(c *ui.Context, t *ui.Theme) {
 			ui.Icon(c, iconPlus)
 			ui.Text(c, "Add").SingleLine()
 		}).Clicked() {
-			a.Headers = append(a.Headers, KeyValue{
+			tab.Headers = append(tab.Headers, KeyValue{
 				Enabled:    true,
 				ValueMode:  httpclient.ValueModeFixed,
 				RandomMode: httpclient.RandomUUIDv4,
@@ -42,8 +43,8 @@ func (a *App) headerKeyValueEditor(c *ui.Context, t *ui.Theme) {
 
 	deleteIndex := -1
 	ui.Column(c).FillWidth().Gap(6).Children(func() {
-		for i := range a.Headers {
-			item := &a.Headers[i]
+		for i := range tab.Headers {
+			item := &tab.Headers[i]
 			normalizeHeader(item)
 			ui.Row(c.Key(i)).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
 				ui.Checkbox(c, &item.Enabled, "").Label("Enable header").Tooltip("Enable this header")
@@ -64,7 +65,7 @@ func (a *App) headerKeyValueEditor(c *ui.Context, t *ui.Theme) {
 		}
 	})
 	if deleteIndex >= 0 {
-		a.Headers = append(a.Headers[:deleteIndex], a.Headers[deleteIndex+1:]...)
+		tab.Headers = append(tab.Headers[:deleteIndex], tab.Headers[deleteIndex+1:]...)
 	}
 	ui.Text(c, "Template values support {{uuid}}, {{uuidv7}}, {{ulid}}, {{timestamp}}, {{random:12}}, {{iso8601}} and literal text.").
 		FontSize(11).TextColor(t.TextMuted)

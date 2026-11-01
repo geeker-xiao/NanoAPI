@@ -19,13 +19,22 @@ NanoAPI 是基于 [MyGo](https://github.com/egoist/mygo) 原生 UI 的轻量 API
 
 ## 功能
 
+- Method 与 URL 融合在同一个输入框内，Send 为独立按钮；URL 默认单行显示（超出部分不展开），点击后展开为多行编辑
+- 左右分栏布局：左侧历史与分组，右侧请求工作区
+- 多标签页：每个标签是一个独立请求，各带自己的 Method、URL、Send、参数、Header、Body、选项和响应；可新建、切换、关闭
+- 请求可保存：每个标签点 Save 即可自己命名保存，连同 URL、Query 参数、Header、鉴权信息、Body 与选项一起存到本机，左侧「Saved requests」随时重新打开
+- 鉴权（Auth）独立配置：None / Bearer token / Basic auth / API key（可选随 Header 或 Query 发送），手写的同名 Header 或参数优先
+- 请求标签两种排布，在 Appearance 中切换：默认**多行**（method 在上、名称在下，标签栏自动换行）；**单行**时标签栏横向滚动，method 收窄为小色条加缩写字号，关闭按钮并入标签内，右侧新建只显示 `+`
+- 打开的请求标签自动保存在本机，关掉应用再打开会恢复到离开时的标签页
 - GET、POST、PUT、PATCH、DELETE、HEAD、OPTIONS、PUSH 请求
 - URL Query 参数与请求 Header 的添加、启用和删除
 - User-Agent 独立配置，以及 Authorization、Cookie 等任意自定义 Header
 - Header Value 支持固定值和多种随机值：UUID、ULID、随机字符串/整数、时间戳、ISO 时间、时间+随机、模板拼接
 - GET、POST、PUT、PATCH、DELETE、HEAD、OPTIONS、PUSH 方法颜色区分
+- Raw Body 内容类型下拉选择：`json`、`xml`、`html`、`javascript`、`text`（未指定时仍按内容自动推断）
+- 切换内容类型时，编辑区示例同步替换为对应类型的样例（已手动编辑过的 Body 不会被覆盖）
 - JSON / 文本 Body、URL 编码表单
-- Multipart 文件上传
+- form-data（multipart/form-data）：每行字段可选 `text` / `file`，选 `file` 时右侧按钮弹出文件选择，支持文本与文件混合提交
 - 响应 Body、Header、状态、耗时、大小查看
 - 图片响应预览：PNG、JPEG、GIF、WebP、BMP、SVG
 - HTML 响应预览：WebView 渲染，自动移除脚本和危险跳转
@@ -37,7 +46,10 @@ NanoAPI 是基于 [MyGo](https://github.com/egoist/mygo) 原生 UI 的轻量 API
 - URL 地址栏支持多行显示，发送时自动忽略编辑换行
 - 自定义背景颜色和背景图片，支持预览、铺满窗口和重启恢复
 - 纸飞机应用图标，窗口和打包资源共用
-- 标签字体颜色默认 `#149998`，可在 Appearance 中修改
+- 标签字体颜色默认 `#111111`，可在 Appearance 中修改
+- 浅色主题采用样例配色：页面底色 `#f5f5f5`、白色卡片、近黑主色 `#111111`、绿色强调 `#22c55e`、圆角 10
+- 深色主题为配套版本：页面底色 `#111111`、卡片 `#1c1c1c`、浅色主按钮（黑字）、绿色强调不变；主题切换时默认背景色自动跟随
+- HTTP 方法色随主题切换深浅变体，标签色对比度过低时自动回退为正文色
 - 自定义字体、字号，设置自动保存
 - 请求历史 JSON 导入、导出与去重合并，包含分组信息
 
@@ -76,8 +88,8 @@ go tool mygo build -platform darwin/universal -o build
 发布新版本只需：
 
 ```sh
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
 版本号取自 `mygo.json` 中的 `version` 字段，发布前请同步修改它。

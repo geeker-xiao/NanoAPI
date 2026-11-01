@@ -12,6 +12,58 @@ import (
 	"time"
 )
 
+func TestDoSendsRawBodyType(t *testing.T) {
+	types := map[string]string{
+		"json":       "application/json; charset=utf-8",
+		"xml":        "application/xml; charset=utf-8",
+		"html":       "text/html; charset=utf-8",
+		"javascript": "application/javascript; charset=utf-8",
+		"text":       "text/plain; charset=utf-8",
+	}
+	for kind, want := range types {
+		t.Run(kind, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if got := r.Header.Get("Content-Type"); got != want {
+					t.Errorf("Content-Type = %q, want %q", got, want)
+				}
+			}))
+			defer server.Close()
+
+			_, err := Do(context.Background(), Request{
+				Method:      "POST",
+				URL:         server.URL,
+				BodyMode:    BodyRaw,
+				Body:        "<a>1</a>",
+				BodyRawType: kind,
+			}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// With no kind, as in requests saved before the dropdown existed, the type is
+// still read off the body.
+func TestDoInfersRawBodyTypeWhenUnset(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Content-Type"); got != "application/json; charset=utf-8" {
+			t.Errorf("Content-Type = %q", got)
+		}
+	}))
+	defer server.Close()
+
+	_, err := Do(context.Background(), Request{
+		Method:   "POST",
+		URL:      server.URL,
+		BodyMode: BodyRaw,
+		Body:     `{"a":1}`,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDoMergesParamsAndSendsHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("q") != "hello world" || r.URL.Query().Get("page") != "2" {
@@ -141,6 +193,81 @@ func TestDoUploadsMultipartAndStreams(t *testing.T) {
 	}
 	if response.Preview != "stream-response" || len(chunks) == 0 {
 		t.Fatalf("response = %#v, chunks = %#v", response, chunks)
+	}
+}
+
+func TestDoSendsFormDataRowsByKind(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "report.csv")
+	if err := os.WriteFile(path, []byte("a,b\n1,2"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "multipart/form-data") {
+			t.Errorf("Content-Type = %q, want multipart/form-data", ct)
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		if got := r.FormValue("note"); got != "hello" {
+			t.Errorf("note = %q, want %q", got, "hello")
+		}
+		// A file row with no path stays a plain part.
+		if got := r.FormValue("empty"); got != "" {
+			t.Errorf("empty = %q, want an empty plain part", got)
+		}
+		file, header, err := r.FormFile("report")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer file.Close()
+		if header.Filename != "report.csv" {
+			t.Errorf("filename = %q, want report.csv", header.Filename)
+		}
+	}))
+	defer server.Close()
+
+	_, err := Do(context.Background(), Request{
+		Method:   "POST",
+		URL:      server.URL,
+		BodyMode: BodyMultipart,
+		FormFields: []KeyValue{
+			{Enabled: true, Key: "note", Value: "hello", FieldType: "text"},
+			{Enabled: true, Key: "report", Value: path, FieldType: "file"},
+			{Enabled: true, Key: "empty", Value: "", FieldType: "file"},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDoAcceptsLegacyMultipartMode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "multipart/form-data") {
+			t.Errorf("Content-Type = %q, want multipart/form-data", ct)
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		if got := r.FormValue("note"); got != "hello" {
+			t.Errorf("note = %q, want %q", got, "hello")
+		}
+	}))
+	defer server.Close()
+
+	// Requests saved before the rename carry "multipart".
+	_, err := Do(context.Background(), Request{
+		Method:     "POST",
+		URL:        server.URL,
+		BodyMode:   "multipart",
+		FormFields: []KeyValue{{Enabled: true, Key: "note", Value: "hello"}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := NormalizeBodyMode("multipart"); got != BodyMultipart {
+		t.Fatalf("NormalizeBodyMode = %q, want %q", got, BodyMultipart)
 	}
 }
 

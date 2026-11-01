@@ -20,11 +20,12 @@ type settingsData struct {
 	BackgroundPath  string  `json:"backgroundPath"`
 	BackgroundColor string  `json:"backgroundColor"`
 	TabColor        string  `json:"tabColor"`
+	TabBarDisplay   string  `json:"tabBarDisplay"`
 }
 
 func (a *App) settingsSnapshot() settingsData {
 	return settingsData{
-		UserAgent:       a.UserAgent,
+		UserAgent:       a.tab().UserAgent,
 		ThemeMode:       a.ThemeMode,
 		FontFamily:      a.FontFamily,
 		FontSize:        a.FontSize,
@@ -32,6 +33,7 @@ func (a *App) settingsSnapshot() settingsData {
 		BackgroundPath:  a.BackgroundPath,
 		BackgroundColor: hexColor(a.BackgroundColor),
 		TabColor:        hexColor(a.TabColor),
+		TabBarDisplay:   a.TabBarDisplay,
 	}
 }
 
@@ -58,7 +60,7 @@ func (a *App) loadSettings() {
 		saved.UserAgent = "NanoAPI/1.0"
 	}
 	if saved.UserAgent != "" {
-		a.UserAgent = saved.UserAgent
+		a.tab().UserAgent = saved.UserAgent
 	}
 	if saved.ThemeMode == "System" || saved.ThemeMode == "Light" || saved.ThemeMode == "Dark" {
 		a.ThemeMode = saved.ThemeMode
@@ -77,6 +79,10 @@ func (a *App) loadSettings() {
 	}
 	if strings.HasPrefix(saved.TabColor, "#") {
 		a.TabColor = ui.Hex(saved.TabColor)
+	}
+	switch saved.TabBarDisplay {
+	case tabBarMultiLine, tabBarSingleLine:
+		a.TabBarDisplay = saved.TabBarDisplay
 	}
 	if strings.HasPrefix(saved.BackgroundColor, "#") {
 		a.BackgroundColor = ui.Hex(saved.BackgroundColor)

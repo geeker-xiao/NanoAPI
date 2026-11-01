@@ -1,16 +1,49 @@
 package main
 
 import (
+	"math"
+
 	"github.com/egoist/mygo/ui"
 )
 
 func (a *App) headersEditor(c *ui.Context, t *ui.Theme) {
+	tab := a.tab()
 	ui.Field(c, "User-Agent", func() {
-		ui.TextInput(c, &a.UserAgent).Placeholder("NanoAPI/1.0").Grow(1).OnChange(a.queueSaveSettings)
+		ui.TextInput(c, &tab.UserAgent).Placeholder("NanoAPI/1.0").Grow(1).OnChange(a.queueSaveSettings)
 	}).Description("Sent as the request User-Agent unless a custom User-Agent header overrides it.")
 	a.headerKeyValueEditor(c, t)
 	ui.Text(c, "Header rows can carry Authorization, Content-Type, cookies, tracing IDs, or any custom header.").FontSize(12).TextColor(t.TextMuted)
 }
+
+// Light palette, taken from the reference design: a light grey page, white
+// surfaces, a near-black primary and a green accent.
+var (
+	styleBackground     = ui.Hex("#f5f5f5")
+	styleSurface        = ui.Hex("#ffffff")
+	styleSurfaceHover   = ui.Hex("#f0f0f0")
+	styleSurfacePressed = ui.Hex("#e8e8e8")
+	styleBorder         = ui.Hex("#e5e5e5")
+	styleText           = ui.Hex("#111111")
+	styleTextMuted      = ui.Hex("#8c8c8c")
+	styleAccent         = ui.Hex("#111111")
+	styleAccentText     = ui.Hex("#ffffff")
+	styleSuccess        = ui.Hex("#22c55e")
+)
+
+// Dark counterpart of the palette: the page takes the near-black of the
+// reference design, cards lift off it, and the primary button becomes light ink
+// with dark text, the way the reference design's button sits on its dark card.
+// The muted grey and the green accent are shared, so both themes read alike.
+var (
+	styleDarkBackground     = ui.Hex("#111111")
+	styleDarkSurface        = ui.Hex("#1c1c1c")
+	styleDarkSurfaceHover   = ui.Hex("#242424")
+	styleDarkSurfacePressed = ui.Hex("#2c2c2c")
+	styleDarkBorder         = ui.Hex("#2e2e2e")
+	styleDarkText           = ui.Hex("#f5f5f5")
+	styleDarkAccent         = ui.Hex("#f5f5f5")
+	styleDarkAccentText     = ui.Hex("#111111")
+)
 
 func coloredTabs(c *ui.Context, selected *int, labels []string, color ui.Color) {
 	t := c.Theme()
@@ -22,10 +55,30 @@ func coloredTabs(c *ui.Context, selected *int, labels []string, color ui.Color) 
 				tab.Background(t.Surface)
 			}
 			tab.Children(func() {
-				ui.Text(c, label).TextColor(color)
+				if i == *selected {
+					ui.Text(c, label).Bold().TextColor(readableTextColor(t, color))
+				} else {
+					ui.Text(c, label).TextColor(t.TextMuted)
+				}
 			})
 		}
 	})
+}
+
+// luminance ranks a color from black (0) to white (1), enough to tell whether
+// two colors read against each other.
+func luminance(color ui.Color) float64 {
+	return (0.2126*float64(color.R) + 0.7152*float64(color.G) + 0.0722*float64(color.B)) / 255
+}
+
+// readableTextColor keeps a picked color when it stands out from the page
+// background, and falls back to body text when it does not: the near-black tab
+// color of the palette is invisible once the theme turns dark.
+func readableTextColor(t *ui.Theme, color ui.Color) ui.Color {
+	if math.Abs(luminance(color)-luminance(t.Background)) >= 0.35 {
+		return color
+	}
+	return t.Text
 }
 
 func (a *App) appearanceEditor(c *ui.Context, t *ui.Theme) {
@@ -49,6 +102,9 @@ func (a *App) appearanceEditor(c *ui.Context, t *ui.Theme) {
 				compactColorWell(c, &a.TabColor, "Tab color").OnChange(a.queueSaveSettings)
 			})
 		})
+		ui.Field(c, tabBarFieldLabel, func() {
+			ui.Select(c, &a.TabBarDisplay, tabBarModes).Width(180).OnChange(a.queueSaveSettings)
+		}).Description(tabBarFieldDescription)
 		ui.Field(c, "Background mode", func() {
 			ui.Select(c, &a.BackgroundMode, []string{"Solid color", "Image"}).Width(180).Height(28).OnChange(a.queueSaveSettings)
 		})
@@ -82,6 +138,13 @@ func (a *App) appearanceEditor(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// tabBarFieldLabel and tabBarFieldDescription explain the two ways the request
+// tabs can be laid out, offered in Appearance.
+const (
+	tabBarFieldLabel       = "Request tabs"
+	tabBarFieldDescription = "Multi-line wraps the tabs onto as many rows as they need, showing method above name. Single line keeps one compact row that scrolls sideways, with the close button inside each tab."
+)
+
 func compactColorWell(c *ui.Context, value *ui.Color, label string) ui.Element {
 	return ui.ColorWell(c, value).Label(label).Size(46, 30).MinWidth(46).MaxWidth(46).Height(30).Shrink(0).AlignSelf(ui.Center)
 }
@@ -102,10 +165,71 @@ func (a *App) applyTheme(c *ui.Context) {
 	if a.FontSize >= 8 {
 		theme.FontSize = float32(a.FontSize)
 	}
+	if theme.Dark {
+		theme = applyDarkPalette(theme)
+	} else {
+		theme = applyLightPalette(theme)
+	}
 	if a.BackgroundMode == "Solid color" {
-		theme.Background = a.BackgroundColor
+		// A background still at the other theme's default follows this theme
+		// instead; a color the user actually picked is kept as it is.
+		switch {
+		case theme.Dark && a.BackgroundColor == styleBackground:
+			theme.Background = styleDarkBackground
+		case !theme.Dark && a.BackgroundColor == styleDarkBackground:
+			theme.Background = styleBackground
+		default:
+			theme.Background = a.BackgroundColor
+		}
 	}
 	c.SetTheme(&theme)
+}
+
+// applyLightPalette restyles a light theme with the reference palette: a light
+// grey page behind white surfaces, a near-black primary and green success, and
+// rounder corners. Paired with applyDarkPalette.
+func applyLightPalette(theme ui.Theme) ui.Theme {
+	theme.Background = styleBackground
+	theme.Surface = styleSurface
+	theme.SurfaceHover = styleSurfaceHover
+	theme.SurfacePressed = styleSurfacePressed
+	theme.Border = styleBorder
+	theme.Text = styleText
+	theme.TextMuted = styleTextMuted
+	theme.Accent = styleAccent
+	theme.AccentHover = ui.Hex("#000000")
+	theme.AccentPressed = ui.Hex("#000000")
+	theme.AccentText = styleAccentText
+	theme.Success = styleSuccess
+	theme.Selection = ui.RGBA(17, 17, 17, 0.15)
+	theme.Focus = ui.RGBA(17, 17, 17, 0.45)
+	theme.Scrollbar = ui.RGBA(0, 0, 0, 0.22)
+	theme.Radius = 10
+	return theme
+}
+
+// applyDarkPalette is the dark half of applyLightPalette: same identity, the
+// page and the ink exchanging places while the green accent is kept.
+func applyDarkPalette(theme ui.Theme) ui.Theme {
+	theme.Background = styleDarkBackground
+	theme.Surface = styleDarkSurface
+	theme.SurfaceHover = styleDarkSurfaceHover
+	theme.SurfacePressed = styleDarkSurfacePressed
+	theme.Border = styleDarkBorder
+	theme.Text = styleDarkText
+	theme.TextMuted = styleTextMuted
+	theme.Accent = styleDarkAccent
+	theme.AccentHover = ui.Hex("#ffffff")
+	theme.AccentPressed = ui.Hex("#e0e0e0")
+	theme.AccentText = styleDarkAccentText
+	theme.Success = styleSuccess
+	theme.Danger = ui.Hex("#ef4444")
+	theme.Warning = ui.Hex("#f59e0b")
+	theme.Selection = ui.RGBA(255, 255, 255, 0.16)
+	theme.Focus = ui.RGBA(255, 255, 255, 0.5)
+	theme.Scrollbar = ui.RGBA(255, 255, 255, 0.28)
+	theme.Radius = 10
+	return theme
 }
 
 func (a *App) fontOptions() []string {

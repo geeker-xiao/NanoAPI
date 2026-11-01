@@ -17,9 +17,12 @@ import (
 
 // KeyValue is one enabled request parameter or header.
 type KeyValue struct {
-	Enabled    bool   `json:"enabled"`
-	Key        string `json:"key"`
-	Value      string `json:"value,omitempty"`
+	Enabled bool   `json:"enabled"`
+	Key     string `json:"key"`
+	Value   string `json:"value,omitempty"`
+	// FieldType only applies to form-data rows: "text" (or empty) sends the
+	// value as a plain part, "file" sends the value as a file path.
+	FieldType  string `json:"fieldType,omitempty"`
 	ValueMode  string `json:"valueMode,omitempty"`
 	RandomMode string `json:"randomMode,omitempty"`
 	Pattern    string `json:"pattern,omitempty"`
@@ -32,18 +35,41 @@ const (
 	BodyNone      BodyMode = "none"
 	BodyRaw       BodyMode = "raw"
 	BodyForm      BodyMode = "form"
-	BodyMultipart BodyMode = "multipart"
+	BodyMultipart BodyMode = "form-data"
+	// bodyMultipartLegacy is how form-data was stored before the rename; it is
+	// still accepted so old history keeps working.
+	bodyMultipartLegacy BodyMode = "multipart"
 )
+
+// FieldTypes are the kinds a form-data row can carry, in the order shown.
+var FieldTypes = []string{"text", "file"}
+
+// IsFileField reports whether a form-data row sends a file.
+func IsFileField(field KeyValue) bool {
+	return strings.EqualFold(strings.TrimSpace(field.FieldType), "file")
+}
+
+// NormalizeBodyMode maps older spellings onto the current ones, so requests
+// saved before the multipart → form-data rename still run.
+func NormalizeBodyMode(mode BodyMode) BodyMode {
+	if mode == bodyMultipartLegacy {
+		return BodyMultipart
+	}
+	return mode
+}
 
 // Request describes an HTTP request in the UI-independent execution layer.
 type Request struct {
-	Method          string        `json:"method"`
-	URL             string        `json:"url"`
-	Params          []KeyValue    `json:"params,omitempty"`
-	Headers         []KeyValue    `json:"headers,omitempty"`
-	UserAgent       string        `json:"userAgent,omitempty"`
-	BodyMode        BodyMode      `json:"bodyMode,omitempty"`
-	Body            string        `json:"body,omitempty"`
+	Method    string     `json:"method"`
+	URL       string     `json:"url"`
+	Params    []KeyValue `json:"params,omitempty"`
+	Headers   []KeyValue `json:"headers,omitempty"`
+	UserAgent string     `json:"userAgent,omitempty"`
+	BodyMode  BodyMode   `json:"bodyMode,omitempty"`
+	Body      string     `json:"body,omitempty"`
+	// BodyRawType is the kind picked for a raw body: json, xml, html,
+	// javascript or text. Left empty, the type is inferred from the body.
+	BodyRawType     string        `json:"bodyRawType,omitempty"`
 	FormFields      []KeyValue    `json:"formFields,omitempty"`
 	FileField       string        `json:"fileField,omitempty"`
 	FilePath        string        `json:"filePath,omitempty"`
@@ -244,14 +270,39 @@ func buildURL(raw string, params []KeyValue) (string, error) {
 	return parsed.String(), nil
 }
 
+// RawContentType returns the Content-Type sent for a raw body of this kind, or
+// "" when the kind is not one of RawBodyTypes.
+func RawContentType(kind string) string {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "json":
+		return "application/json; charset=utf-8"
+	case "xml":
+		return "application/xml; charset=utf-8"
+	case "html":
+		return "text/html; charset=utf-8"
+	case "javascript":
+		return "application/javascript; charset=utf-8"
+	case "text":
+		return "text/plain; charset=utf-8"
+	}
+	return ""
+}
+
+// RawBodyTypes are the kinds offered for a raw body, in the order shown.
+var RawBodyTypes = []string{"json", "xml", "html", "javascript", "text"}
+
 func buildBody(req Request) (io.Reader, string, int64, func(), error) {
 	switch req.BodyMode {
 	case BodyNone, "":
 		return nil, "", 0, nil, nil
 	case BodyRaw:
-		contentType := "text/plain; charset=utf-8"
-		if strings.HasPrefix(strings.TrimSpace(req.Body), "{") || strings.HasPrefix(strings.TrimSpace(req.Body), "[") {
-			contentType = "application/json; charset=utf-8"
+		contentType := RawContentType(req.BodyRawType)
+		if contentType == "" {
+			// Older requests carry no kind: fall back to reading the body.
+			contentType = "text/plain; charset=utf-8"
+			if strings.HasPrefix(strings.TrimSpace(req.Body), "{") || strings.HasPrefix(strings.TrimSpace(req.Body), "[") {
+				contentType = "application/json; charset=utf-8"
+			}
 		}
 		return strings.NewReader(req.Body), contentType, int64(len(req.Body)), nil, nil
 	case BodyForm:
@@ -263,48 +314,77 @@ func buildBody(req Request) (io.Reader, string, int64, func(), error) {
 		}
 		data := values.Encode()
 		return strings.NewReader(data), "application/x-www-form-urlencoded", int64(len(data)), nil, nil
-	case BodyMultipart:
-		if strings.TrimSpace(req.FilePath) == "" {
-			values := url.Values{}
-			for _, field := range req.FormFields {
-				if field.Enabled && strings.TrimSpace(field.Key) != "" {
-					values.Add(strings.TrimSpace(field.Key), field.Value)
-				}
-			}
-			data := values.Encode()
-			return strings.NewReader(data), "application/x-www-form-urlencoded", int64(len(data)), nil, nil
-		}
-		file, err := os.Open(req.FilePath)
-		if err != nil {
-			return nil, "", 0, nil, fmt.Errorf("open upload file: %w", err)
-		}
-		pr, pw := io.Pipe()
-		writer := multipart.NewWriter(pw)
-		go func() {
-			defer pw.Close()
-			defer file.Close()
-			for _, field := range req.FormFields {
-				if field.Enabled && strings.TrimSpace(field.Key) != "" {
-					_ = writer.WriteField(strings.TrimSpace(field.Key), field.Value)
-				}
-			}
-			name := filepath.Base(req.FilePath)
-			part, err := writer.CreateFormFile(strings.TrimSpace(orDefault(req.FileField, "file")), name)
-			if err == nil {
-				_, err = io.Copy(part, file)
-			}
-			closeErr := writer.Close()
-			if err == nil {
-				err = closeErr
-			}
-			if err != nil {
-				_ = pw.CloseWithError(err)
-			}
-		}()
-		return pr, writer.FormDataContentType(), -1, nil, nil
+	case BodyMultipart, bodyMultipartLegacy:
+		return buildFormData(req)
 	default:
 		return nil, "", 0, nil, fmt.Errorf("unsupported body mode %q", req.BodyMode)
 	}
+}
+
+// buildFormData streams a multipart/form-data body. Rows marked "file" are
+// sent as file parts, every other row as a plain part; the single upload kept
+// in the Upload tab is appended for requests saved before rows had a kind.
+func buildFormData(req Request) (io.Reader, string, int64, func(), error) {
+	type part struct {
+		key   string
+		value string
+		file  bool
+	}
+	var parts []part
+	for _, field := range req.FormFields {
+		if !field.Enabled || strings.TrimSpace(field.Key) == "" {
+			continue
+		}
+		isFile := IsFileField(field) && strings.TrimSpace(field.Value) != ""
+		parts = append(parts, part{
+			key:   strings.TrimSpace(field.Key),
+			value: field.Value,
+			file:  isFile,
+		})
+	}
+	if path := strings.TrimSpace(req.FilePath); path != "" {
+		parts = append(parts, part{
+			key:   strings.TrimSpace(orDefault(req.FileField, "file")),
+			value: path,
+			file:  true,
+		})
+	}
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+	go func() {
+		defer pw.Close()
+		for _, p := range parts {
+			var err error
+			if p.file {
+				err = writeFilePart(writer, p.key, p.value)
+			} else {
+				err = writer.WriteField(p.key, p.value)
+			}
+			if err != nil {
+				_ = pw.CloseWithError(err)
+				return
+			}
+		}
+		if err := writer.Close(); err != nil {
+			_ = pw.CloseWithError(err)
+		}
+	}()
+	return pr, writer.FormDataContentType(), -1, nil, nil
+}
+
+// writeFilePart attaches path as a file part named field.
+func writeFilePart(writer *multipart.Writer, field, path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open upload file: %w", err)
+	}
+	defer file.Close()
+	part, err := writer.CreateFormFile(field, filepath.Base(path))
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(part, file)
+	return err
 }
 
 type redirectBlockingTransport struct{ next http.RoundTripper }
