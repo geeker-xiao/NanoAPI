@@ -5,5 +5,9 @@
   "version": "1.0.2",
   "icon": "resources/icon.png",
   "main": "./cmd/nanoapi",
-  "out": "build"
+  "out": "build",
+  "i18n": {
+    "dir": "locales",
+    "source": "en"
+  }
 }

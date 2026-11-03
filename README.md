@@ -19,6 +19,7 @@ NanoAPI 是基于 [MyGo](https://github.com/egoist/mygo) 原生 UI 的轻量 API
 
 ## 功能
 
+- 界面语言可切换：跟随系统 / English / 简体中文，切换即时生效无需重启；选择中文时，文件对话框等系统控件同步为中文（消息目录见 `locales/`）
 - Method 与 URL 融合在同一个输入框内，Send 为独立按钮；URL 默认单行显示（超出部分不展开），点击后展开为多行编辑
 - 左右分栏布局：左侧历史与分组，右侧请求工作区
 - 多标签页：每个标签是一个独立请求，各带自己的 Method、URL、Send、参数、Header、Body、选项和响应；可新建、切换、关闭
@@ -103,9 +104,26 @@ go vet ./...
 go tool mygo vet ./...
 ```
 
+## 国际化
+
+界面文字来自 `locales/` 下的消息目录（`en.json` 为源语言，`zh-Hans.json` 为简体中文译文），改完后运行：
+
+```powershell
+go tool mygo i18n check   # 校验消息能否解析、译文参数是否齐全
+go tool mygo generate     # 重新生成 locales/catalog_gen.go 中的访问函数
+```
+
+用伪语种可以快速找出还没接入消息目录的硬编码文案：
+
+```powershell
+$env:MYGO_LOCALE = "en-XA"; go run ./cmd/nanoapi
+```
+
 ## 代码结构
 
 - `cmd/nanoapi/main.go`：MyGo 原生 UI、窗口和应用状态
+- `cmd/nanoapi/language.go`：界面语言选择、切换生效与托盘菜单重建
+- `locales/`：各语言的消息目录与生成的访问函数
 - `cmd/nanoapi/groups.go`：请求分组、分组编辑和历史搜索
 - `cmd/nanoapi/response_preview.go`：图片和 HTML 响应预览
 - `internal/httpclient/client.go`：HTTP 请求、Multipart 上传、流式读取、下载落盘

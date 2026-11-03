@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"nanoapi/locales"
 )
 
 // SavedRequest is a stored request: everything needed to run it again, plus
@@ -253,7 +255,7 @@ func (a *App) queueSaveRequests() {
 	active := a.ActiveTab
 	go func() {
 		if err := writeRequestsFile(requestsFile{Saved: saved, Open: open, Active: active}); err != nil {
-			a.publish(func() { a.Error = "Could not save requests: " + err.Error() })
+			a.publish(func() { a.Error = locales.SaveRequestsFailed(err.Error()) })
 		}
 	}()
 }
@@ -283,9 +285,9 @@ func writeRequestsFile(file requestsFile) error {
 func (a *App) savedSection(c *ui.Context, t *ui.Theme) {
 	openID := ""
 	deleteID := ""
-	ui.Collapsible(c, fmt.Sprintf("Saved requests (%d)", len(a.SavedRequests)), &a.SavedSectionOpen, func() {
+	ui.Collapsible(c, locales.SavedRequestsCount(len(a.SavedRequests)), &a.SavedSectionOpen, func() {
 		if len(a.SavedRequests) == 0 {
-			ui.Text(c, "Save a request to keep it here.").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, locales.NoSavedRequests()).FontSize(12).TextColor(t.TextMuted)
 			return
 		}
 		// The sidebar scrolls as a whole, so the groups just flow here and
@@ -307,7 +309,7 @@ func (a *App) savedSection(c *ui.Context, t *ui.Theme) {
 							if item.Clicked() {
 								openID = s.ID
 							}
-							if ui.Button(c, "").Label("Delete saved request").Tooltip("Delete "+s.Name).Padding(4, 3).Radius(t.Radius).Children(func() {
+							if ui.Button(c, "").Label(locales.DeleteSavedRequestButton()).Tooltip(locales.DeleteNamed(s.Name)).Padding(4, 3).Radius(t.Radius).Children(func() {
 								ui.Icon(c, iconTrash).FontSize(12).TextColor(t.TextMuted)
 							}).Clicked() {
 								deleteID = s.ID
@@ -428,13 +430,13 @@ func (a *App) groupedSavedRequests() []savedGroupView {
 func (a *App) saveRequestDraft() {
 	name := strings.TrimSpace(a.SaveDraftName)
 	if name == "" {
-		a.SaveDraftError = "Give the request a name."
+		a.SaveDraftError = locales.GiveRequestName()
 		return
 	}
 	tab := a.tab()
 	for _, saved := range a.SavedRequests {
 		if saved.ID != tab.SavedID && strings.EqualFold(saved.Name, name) {
-			a.SaveDraftError = "Another saved request already uses this name."
+			a.SaveDraftError = locales.SavedNameTaken()
 			return
 		}
 	}
