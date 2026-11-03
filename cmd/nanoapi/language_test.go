@@ -140,6 +140,28 @@ func TestOptionsKeepTheirStoredValue(t *testing.T) {
 	}
 }
 
+// TestSuggestedRequestNameStaysEnglish pins the decision that the name the Save
+// dialog offers is user data rather than chrome. It is written into
+// requests.json, so translating it would stamp the language of the moment onto
+// the saved request: a request filed as 未命名请求 under Chinese would not turn
+// back into English afterwards, and the duplicate-name check would treat the two
+// spellings as two different requests.
+func TestSuggestedRequestNameStaysEnglish(t *testing.T) {
+	if got := suggestRequestName(&Tab{}); got != "Untitled request" {
+		t.Errorf("suggestRequestName(blank) = %q, want the literal %q", got, "Untitled request")
+	}
+	// The tab title is display only and never stored, so it does follow the
+	// language. The difference between the two is deliberate.
+	if got := (&Tab{}).Title(); got != locales.Untitled() {
+		t.Errorf("Title() = %q, want the localized %q", got, locales.Untitled())
+	}
+	// A name the reader typed is kept exactly, in any language.
+	typed := &Tab{Name: "订单接口"}
+	if got := suggestRequestName(typed); got != "订单接口" {
+		t.Errorf("suggestRequestName(typed) = %q, want the typed name untouched", got)
+	}
+}
+
 // TestCatalogSaysEveryMessageInBothLanguages keeps the two catalogs level: a key
 // translated into English alone would show English to a reader of Chinese.
 func TestCatalogSaysEveryMessageInBothLanguages(t *testing.T) {

@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+
+	"nanoapi/locales"
 )
 
 type settingsData struct {
@@ -118,7 +120,7 @@ func (a *App) queueSaveSettings() {
 	saved := a.settingsSnapshot()
 	go func() {
 		if err := writeSettings(saved); err != nil {
-			a.publish(func() { a.Error = "Could not save appearance settings: " + err.Error() })
+			a.publish(func() { a.Error = locales.SaveSettingsFailed(err.Error()) })
 		}
 	}()
 }
@@ -161,7 +163,7 @@ func (a *App) loadBackgroundImage() {
 }
 
 func (a *App) chooseBackgroundImage() {
-	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Choose a background image", Filters: []mygo.FileFilter{{Name: "Images", Extensions: []string{"png", "jpg", "jpeg", "gif", "webp", "bmp"}}}})
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ChooseBackgroundImage(), Filters: []mygo.FileFilter{{Name: "Images", Extensions: []string{"png", "jpg", "jpeg", "gif", "webp", "bmp"}}}})
 	if err != nil {
 		a.publish(func() { a.Error = err.Error() })
 		return

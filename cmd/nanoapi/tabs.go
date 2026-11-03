@@ -65,6 +65,11 @@ type Tab struct {
 	PreviewMessage string
 	ResponseImage  ui.ImageSource
 
+	// authApplied is the auth mode the picker last showed, so the picker that
+	// stores one literal and names it another notices a change. Nothing else
+	// depends on it: the Auth picker has no onChange to run.
+	authApplied string
+
 	cancel    context.CancelFunc
 	lastChunk time.Time
 }
@@ -98,7 +103,7 @@ func (tab *Tab) Title() string {
 	}
 	url := strings.TrimSpace(tab.URL)
 	if url == "" {
-		return "Untitled"
+		return locales.Untitled()
 	}
 	return strings.TrimSpace(tab.Method) + " " + shortURL(url)
 }
@@ -111,7 +116,7 @@ func (tab *Tab) ShortTitle() string {
 	}
 	url := strings.TrimSpace(tab.URL)
 	if url == "" {
-		return "Untitled"
+		return locales.Untitled()
 	}
 	return shortURL(url)
 }
@@ -321,7 +326,7 @@ func (a *App) tabButton(c *ui.Context, tab *Tab, index int, single bool, selectI
 
 // tabCloseButton drops a request from the tab bar.
 func (a *App) tabCloseButton(c *ui.Context, t *ui.Theme, index int, closeIndex *int) {
-	button := ui.Button(c, "").Label("Close tab").Tooltip("Close this request").Padding(4, 4).Radius(t.Radius)
+	button := ui.Button(c, "").Label(locales.CloseTab()).Tooltip(locales.CloseTabTooltip()).Padding(4, 4).Radius(t.Radius)
 	button.Children(func() {
 		ui.Icon(c, iconCancel).FontSize(12).TextColor(t.TextMuted)
 	})

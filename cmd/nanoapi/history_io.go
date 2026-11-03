@@ -8,20 +8,21 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"nanoapi/internal/history"
+	"nanoapi/locales"
 )
 
 func (a *App) historyTools(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).FillWidth().Gap(6).Children(func() {
-		if ui.Button(c, "").Label("Export request history").Tooltip("Export request groups and records as JSON").Children(func() {
+		if ui.Button(c, "").Label(locales.ExportHistory()).Tooltip(locales.ExportHistoryTooltip()).Children(func() {
 			ui.Icon(c, iconDownload)
-			ui.Text(c, "Export").SingleLine()
+			ui.Text(c, locales.Export()).SingleLine()
 		}).Clicked() {
 			bundle := toHistoryBundle(a.Groups, a.History)
 			go a.exportHistory(bundle)
 		}
-		if ui.Button(c, "").Label("Import request history").Tooltip("Import request groups and records from JSON").Children(func() {
+		if ui.Button(c, "").Label(locales.ImportHistory()).Tooltip(locales.ImportHistoryTooltip()).Children(func() {
 			ui.Icon(c, iconUpload)
-			ui.Text(c, "Import").SingleLine()
+			ui.Text(c, locales.Import()).SingleLine()
 		}).Clicked() {
 			existing := toHistoryBundle(a.Groups, a.History)
 			go a.importHistory(existing)
@@ -31,7 +32,7 @@ func (a *App) historyTools(c *ui.Context, t *ui.Theme) {
 
 func (a *App) exportHistory(bundle history.Bundle) {
 	path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-		Title:       "Export request history",
+		Title:       locales.ExportHistory(),
 		DefaultPath: "nanoapi-history.json",
 		Filters:     []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}},
 	})
@@ -57,7 +58,7 @@ func (a *App) exportHistory(bundle history.Bundle) {
 
 func (a *App) importHistory(existing history.Bundle) {
 	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-		Title:   "Import request history",
+		Title:   locales.ImportHistory(),
 		Filters: []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}},
 	})
 	if err != nil {

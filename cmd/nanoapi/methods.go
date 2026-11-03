@@ -97,12 +97,12 @@ func (a *App) timeoutStepper(c *ui.Context) {
 	size := t.Rem(2.3)
 	ui.Row(c).Gap(t.Space(1.5)).AlignItems(ui.Center).Children(func() {
 		ui.TextInput(c, &tab.TimeoutText).Width(t.Rem(5.2)).Height(size).MinHeight(size).MaxHeight(size).TextAlign(ui.Center).OnChange(a.parseTimeout)
-		if ui.Button(c, "").Label("Decrease timeout").Tooltip("Decrease timeout").Size(size, size).MinHeight(size).MaxHeight(size).Padding(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+		if ui.Button(c, "").Label(locales.DecreaseTimeout()).Tooltip(locales.DecreaseTimeout()).Size(size, size).MinHeight(size).MaxHeight(size).Padding(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ui.Icon(c, iconMinus).FontSize(t.FontSize)
 		}).Clicked() {
 			a.adjustTimeout(-1)
 		}
-		if ui.Button(c, "").Label("Increase timeout").Tooltip("Increase timeout").Size(size, size).MinHeight(size).MaxHeight(size).Padding(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+		if ui.Button(c, "").Label(locales.IncreaseTimeout()).Tooltip(locales.IncreaseTimeout()).Size(size, size).MinHeight(size).MaxHeight(size).Padding(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ui.Icon(c, iconPlus).FontSize(t.FontSize)
 		}).Clicked() {
 			a.adjustTimeout(1)

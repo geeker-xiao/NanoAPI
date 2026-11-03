@@ -12,9 +12,9 @@ func (a *App) headersEditor(c *ui.Context, t *ui.Theme) {
 	tab := a.tab()
 	ui.Field(c, "User-Agent", func() {
 		ui.TextInput(c, &tab.UserAgent).Placeholder("NanoAPI/1.0").Grow(1).OnChange(a.queueSaveSettings)
-	}).Description("Sent as the request User-Agent unless a custom User-Agent header overrides it.")
+	}).Description(locales.UserAgentNote())
 	a.headerKeyValueEditor(c, t)
-	ui.Text(c, "Header rows can carry Authorization, Content-Type, cookies, tracing IDs, or any custom header.").FontSize(12).TextColor(t.TextMuted)
+	ui.Text(c, locales.HeaderRowsNote()).FontSize(12).TextColor(t.TextMuted)
 }
 
 // Light palette, taken from the reference design: a light grey page, white
@@ -159,7 +159,9 @@ func optionSelect(c *ui.Context, value *string, applied *string, width float32, 
 	})
 	if *value != *applied {
 		*applied = *value
-		onChange()
+		if onChange != nil {
+			onChange()
+		}
 	}
 }
 

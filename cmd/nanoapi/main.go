@@ -241,28 +241,30 @@ func (a *App) saveRequestDialogs(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.SaveDialogOpen, func() {
 		tab := a.tab()
 		ui.Column(c).Width(440).Padding(20).Gap(12).Background(t.Surface).Border(1, t.Border).Radius(12).Children(func() {
-			ui.Text(c, "Save request").FontSize(20).Bold()
-			ui.Text(c, "Kept on this device with its URL, headers, query parameters and credential.").TextColor(t.TextMuted)
-			ui.Field(c, "Name", func() {
-				ui.TextInput(c, &a.SaveDraftName).Placeholder("Request name").Grow(1).AutoFocus()
+			ui.Text(c, locales.SaveRequest()).FontSize(20).Bold()
+			ui.Text(c, locales.SaveRequestNote()).TextColor(t.TextMuted)
+			ui.Field(c, locales.FieldName(), func() {
+				ui.TextInput(c, &a.SaveDraftName).Placeholder(locales.RequestNamePlaceholder()).Grow(1).AutoFocus()
 			})
-			ui.Field(c, "Group", func() {
+			ui.Field(c, locales.FieldGroup(), func() {
 				ui.Select(c, &a.SaveDraftGroup, a.savedGroupOptions()).Grow(1)
 			})
-			ui.Textf(c, "Will be saved to group: %s", a.effectiveSaveGroup()).FontSize(12).TextColor(t.TextMuted)
-			ui.Field(c, "New group (optional)", func() {
-				ui.TextInput(c, &a.SaveDraftNewGroup).Placeholder("Type to create a new group; leave blank to use the selected one").Grow(1)
+			// ui.Text, not ui.Textf: the message is already said, and handing a
+			// formatted string to a printf-style call trips go vet.
+			ui.Text(c, locales.WillSaveToGroup(a.effectiveSaveGroup())).FontSize(12).TextColor(t.TextMuted)
+			ui.Field(c, locales.NewGroupOptional(), func() {
+				ui.TextInput(c, &a.SaveDraftNewGroup).Placeholder(locales.NewGroupHint()).Grow(1)
 			})
 			ui.Textf(c, "%s %s", tab.Method, shortURL(tab.URL)).FontSize(12).TextColor(t.TextMuted).SingleLine()
 			if a.SaveDraftError != "" {
 				ui.Text(c, a.SaveDraftError).TextColor(t.Danger)
 			}
 			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					a.SaveDialogOpen = false
 					a.SaveDraftError = ""
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if ui.PrimaryButton(c, locales.Save()).Clicked() {
 					a.saveRequestDraft()
 				}
 			})
@@ -273,17 +275,17 @@ func (a *App) saveRequestDialogs(c *ui.Context, t *ui.Theme) {
 		saved, ok := a.savedRequestByID(a.SavedDeleteID)
 		name := saved.Name
 		if !ok {
-			name = "this request"
+			name = locales.ThisRequest()
 		}
 		ui.Column(c).Width(400).Padding(20).Gap(12).Background(t.Surface).Border(1, t.Border).Radius(12).Children(func() {
-			ui.Text(c, "Delete saved request?").FontSize(20).Bold()
-			ui.Textf(c, "%s will no longer be listed. Requests already open stay open.", name).TextColor(t.TextMuted)
+			ui.Text(c, locales.DeleteSavedRequestQuestion()).FontSize(20).Bold()
+			ui.Text(c, locales.DeleteSavedRequestNote(name)).TextColor(t.TextMuted)
 			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					a.SavedDeleteOpen = false
 					a.SavedDeleteID = ""
 				}
-				if ui.Button(c, "Delete").TextColor(t.Danger).Clicked() {
+				if ui.Button(c, locales.Delete()).TextColor(t.Danger).Clicked() {
 					a.deleteSavedRequest(a.SavedDeleteID)
 					a.SavedDeleteOpen = false
 					a.SavedDeleteID = ""
@@ -361,9 +363,9 @@ func (a *App) requestBar(c *ui.Context, t *ui.Theme) {
 		ui.Checkbox(c, &tab.Stream, locales.StreamResponse())
 		ui.Checkbox(c, &tab.Download, locales.DownloadToFile())
 		if tab.Download {
-			if ui.Button(c, "").Label("Choose destination").Tooltip("Choose where to save the response").Children(func() {
+			if ui.Button(c, "").Label(locales.ChooseDestination()).Tooltip(locales.ChooseDestinationTooltip()).Children(func() {
 				ui.Icon(c, iconDownload)
-				ui.Text(c, "Destination").SingleLine()
+				ui.Text(c, locales.Destination()).SingleLine()
 			}).Clicked() {
 				go a.chooseDownloadPath()
 			}
@@ -395,7 +397,7 @@ func (a *App) sidebar(c *ui.Context, t *ui.Theme) {
 					ui.Spacer(c)
 					ui.Textf(c, "%d", len(items)).TextColor(t.TextMuted)
 				})
-				ui.SearchField(c, &a.HistorySearch).Label("Search request history")
+				ui.SearchField(c, &a.HistorySearch).Label(locales.SearchHistory())
 				a.groupSelect(c)
 				a.groupTools(c, t)
 				a.historyTools(c, t)
@@ -477,7 +479,7 @@ func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 		ui.Scroll(c).FillWidth().MaxHeight(t.Rem(20)).Children(func() {
 			switch tab.RequestTab {
 			case 0:
-				a.keyValueEditor(c, t, "Query parameters", &tab.Params)
+				a.keyValueEditor(c, t, locales.QueryParameters(), &tab.Params)
 			case 1:
 				a.headersEditor(c, t)
 			case 2:
@@ -499,9 +501,9 @@ func (a *App) keyValueEditor(c *ui.Context, t *ui.Theme, title string, items *[]
 	ui.Row(c).FillWidth().Children(func() {
 		ui.Text(c, title).Bold()
 		ui.Spacer(c)
-		if ui.Button(c, "").Label("Add row").Tooltip("Add a key/value row").Children(func() {
+		if ui.Button(c, "").Label(locales.AddRow()).Tooltip(locales.AddRowTooltip()).Children(func() {
 			ui.Icon(c, iconPlus)
-			ui.Text(c, "Add").SingleLine()
+			ui.Text(c, locales.Add()).SingleLine()
 		}).Clicked() {
 			*items = append(*items, KeyValue{Enabled: true})
 		}
@@ -514,10 +516,10 @@ func (a *App) keyValueEditor(c *ui.Context, t *ui.Theme, title string, items *[]
 		for i := range *items {
 			item := &(*items)[i]
 			ui.Row(c.Key(i)).FillWidth().Gap(6).Children(func() {
-				ui.Checkbox(c, &item.Enabled, "").Label("Enable row").Tooltip("Enable this row")
+				ui.Checkbox(c, &item.Enabled, "").Label(locales.EnableRow()).Tooltip(locales.EnableRowTooltip())
 				ui.TextInput(c, &item.Key).Placeholder("key").Width(190)
 				ui.TextInput(c, &item.Value).Placeholder("value").Grow(1)
-				if ui.Button(c, "").Label("Delete row").Tooltip("Delete this row").Children(func() {
+				if ui.Button(c, "").Label(locales.DeleteRow()).Tooltip(locales.DeleteRowTooltip()).Children(func() {
 					ui.Icon(c, iconTrash)
 				}).Clicked() {
 					deleteIndex = i
@@ -542,9 +544,9 @@ func (a *App) formDataEditor(c *ui.Context, t *ui.Theme, title string, items *[]
 	ui.Row(c).FillWidth().Children(func() {
 		ui.Text(c, title).Bold()
 		ui.Spacer(c)
-		if ui.Button(c, "").Label("Add row").Tooltip("Add a form-data row").Children(func() {
+		if ui.Button(c, "").Label(locales.AddRow()).Tooltip(locales.AddFormRowTooltip()).Children(func() {
 			ui.Icon(c, iconPlus)
-			ui.Text(c, "Add").SingleLine()
+			ui.Text(c, locales.Add()).SingleLine()
 		}).Clicked() {
 			*items = append(*items, KeyValue{Enabled: true, FieldType: "text"})
 		}
@@ -561,25 +563,25 @@ func (a *App) formDataEditor(c *ui.Context, t *ui.Theme, title string, items *[]
 			}
 			isFile := strings.EqualFold(item.FieldType, "file")
 			ui.Row(c.Key(i)).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Checkbox(c, &item.Enabled, "").Label("Enable row").Tooltip("Enable this row")
+				ui.Checkbox(c, &item.Enabled, "").Label(locales.EnableRow()).Tooltip(locales.EnableRowTooltip())
 				ui.TextInput(c, &item.Key).Placeholder("key").Width(190)
 				ui.Select(c, &item.FieldType, httpclient.FieldTypes).Width(90)
 				if isFile {
 					label := shortPath(item.Value)
 					if strings.TrimSpace(label) == "" {
-						label = "No file chosen"
+						label = locales.NoFileChosen()
 					}
 					ui.Text(c, label).Grow(1).SingleLine().TextColor(t.TextMuted)
-					if ui.Button(c, "").Label("Choose file").Tooltip("Choose the file sent as this field").Children(func() {
+					if ui.Button(c, "").Label(locales.ChooseFile()).Tooltip(locales.ChooseFileFieldTooltip()).Children(func() {
 						ui.Icon(c, iconUpload)
-						ui.Text(c, "Choose").SingleLine()
+						ui.Text(c, locales.Choose()).SingleLine()
 					}).Clicked() {
 						go a.chooseFormFile(i)
 					}
 				} else {
 					ui.TextInput(c, &item.Value).Placeholder("value").Grow(1)
 				}
-				if ui.Button(c, "").Label("Delete row").Tooltip("Delete this row").Children(func() {
+				if ui.Button(c, "").Label(locales.DeleteRow()).Tooltip(locales.DeleteRowTooltip()).Children(func() {
 					ui.Icon(c, iconTrash)
 				}).Clicked() {
 					deleteIndex = i
@@ -595,7 +597,7 @@ func (a *App) formDataEditor(c *ui.Context, t *ui.Theme, title string, items *[]
 func (a *App) bodyEditor(c *ui.Context, t *ui.Theme) {
 	tab := a.tab()
 	ui.Row(c).FillWidth().Gap(t.Space(2)).Children(func() {
-		ui.Text(c, "Body").Bold()
+		ui.Text(c, locales.TabBody()).Bold()
 		ui.Select(c, &tab.BodyMode, bodyModes).Width(150)
 		// The kind of a raw body, right after the mode that turns it on.
 		if tab.BodyMode == "raw" {
@@ -613,52 +615,52 @@ func (a *App) bodyEditor(c *ui.Context, t *ui.Theme) {
 		// Keep the sample in the editor in step with the picked kind.
 		tab.syncRawBodySample()
 		ui.Field(c, rawBodyLabel(tab.BodyRawType), func() {
-			ui.TextArea(c, &tab.Body).Font("monospace").Grow(1).FillHeight().Placeholder("Request body")
-		}).Description("Sent as " + httpclient.RawContentType(tab.BodyRawType) + ".")
+			ui.TextArea(c, &tab.Body).Font("monospace").Grow(1).FillHeight().Placeholder(locales.RequestBodyPlaceholder())
+		}).Description(locales.SentAsContentType(httpclient.RawContentType(tab.BodyRawType)))
 	case "form":
-		a.keyValueEditor(c, t, "Form fields", &tab.FormFields)
+		a.keyValueEditor(c, t, locales.FormFields(), &tab.FormFields)
 	case bodyModeFormData, "multipart":
-		a.formDataEditor(c, t, "Form-data fields", &tab.FormFields)
+		a.formDataEditor(c, t, locales.FormDataFields(), &tab.FormFields)
 	default:
-		ui.Text(c, "No request body will be sent.").TextColor(t.TextMuted)
+		ui.Text(c, locales.NoRequestBody()).TextColor(t.TextMuted)
 	}
 }
 
 func (a *App) uploadEditor(c *ui.Context, t *ui.Theme) {
 	tab := a.tab()
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, "File upload").Bold()
-		ui.Text(c, "Also sent with form-data requests saved before rows had a kind.").TextColor(t.TextMuted)
+		ui.Text(c, locales.FileUpload()).Bold()
+		ui.Text(c, locales.FileUploadNote()).TextColor(t.TextMuted)
 	})
 	ui.Form(c, func() {
-		ui.Field(c, "File field", func() { ui.TextInput(c, &tab.FileField).Placeholder("file") })
-		ui.Field(c, "File", func() {
+		ui.Field(c, locales.FileField(), func() { ui.TextInput(c, &tab.FileField).Placeholder("file") })
+		ui.Field(c, locales.File(), func() {
 			ui.Row(c).FillWidth().Gap(8).Children(func() {
 				ui.Text(c, shortPath(tab.FilePath)).Grow(1).SingleLine()
-				if ui.Button(c, "").Label("Choose file").Tooltip("Choose a file to upload").Children(func() {
+				if ui.Button(c, "").Label(locales.ChooseFile()).Tooltip(locales.ChooseFileUploadTooltip()).Children(func() {
 					ui.Icon(c, iconUpload)
-					ui.Text(c, "Choose").SingleLine()
+					ui.Text(c, locales.Choose()).SingleLine()
 				}).Clicked() {
 					go a.chooseUploadFile()
 				}
 			})
-		}).Description("The filename and MIME type are sent automatically.")
+		}).Description(locales.FilenameMimeNote())
 	})
 }
 
 func (a *App) optionsEditor(c *ui.Context, t *ui.Theme) {
 	tab := a.tab()
 	ui.Row(c).FillWidth().Gap(16).Children(func() {
-		ui.Checkbox(c, &tab.FollowRedirects, "Follow redirects")
-		ui.Checkbox(c, &tab.Stream, "Stream response chunks")
-		ui.Checkbox(c, &tab.Download, "Save full response to disk")
+		ui.Checkbox(c, &tab.FollowRedirects, locales.FollowRedirects())
+		ui.Checkbox(c, &tab.Stream, locales.StreamResponseChunks())
+		ui.Checkbox(c, &tab.Download, locales.SaveFullResponseToDisk())
 	})
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, "Download destination").Bold()
+		ui.Text(c, locales.DownloadDestination()).Bold()
 		ui.Text(c, shortPath(tab.DownloadPath)).Grow(1).TextColor(t.TextMuted).SingleLine()
-		if ui.Button(c, "").Label("Choose destination").Tooltip("Choose the response download path").Children(func() {
+		if ui.Button(c, "").Label(locales.ChooseDestination()).Tooltip(locales.ChooseDownloadPathTooltip()).Children(func() {
 			ui.Icon(c, iconDownload)
-			ui.Text(c, "Choose").SingleLine()
+			ui.Text(c, locales.Choose()).SingleLine()
 		}).Clicked() {
 			go a.chooseDownloadPath()
 		}
@@ -719,7 +721,7 @@ func (a *App) responsePanel(c *ui.Context, t *ui.Theme) {
 func (a *App) send() {
 	tab := a.tab()
 	if tab.Download && strings.TrimSpace(tab.DownloadPath) == "" {
-		tab.Error = "Choose a download destination before sending."
+		tab.Error = locales.ChooseDestinationFirst()
 		return
 	}
 	a.parseTimeout()
@@ -775,7 +777,7 @@ func (a *App) send() {
 			tab.cancel = nil
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
-					tab.Error = "Request canceled"
+					tab.Error = locales.RequestCanceled()
 				} else {
 					tab.Error = err.Error()
 				}
@@ -801,7 +803,7 @@ func (a *App) send() {
 
 func (a *App) chooseUploadFile() {
 	tab := a.tab()
-	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Choose a file to upload"})
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ChooseFileUploadTooltip()})
 	a.publish(func() {
 		if err != nil {
 			tab.Error = err.Error()
@@ -817,7 +819,7 @@ func (a *App) chooseUploadFile() {
 // chooseFormFile picks the file sent by the form-data row at index.
 func (a *App) chooseFormFile(index int) {
 	tab := a.tab()
-	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Choose a file for this field"})
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ChooseFile()})
 	a.publish(func() {
 		if err != nil {
 			tab.Error = err.Error()
@@ -832,7 +834,7 @@ func (a *App) chooseFormFile(index int) {
 
 func (a *App) chooseDownloadPath() {
 	tab := a.tab()
-	path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: "Save response"})
+	path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: locales.SaveResponse()})
 	a.publish(func() {
 		if err != nil {
 			tab.Error = err.Error()
@@ -860,7 +862,7 @@ func (a *App) saveResponse() {
 	}
 	if response.Truncated {
 		a.publish(func() {
-			tab.Error = "The response preview is truncated. Enable Download to file for the complete response."
+			tab.Error = locales.PreviewTruncatedSaveHint()
 		})
 		return
 	}
@@ -868,7 +870,7 @@ func (a *App) saveResponse() {
 	if strings.Contains(strings.ToLower(response.ContentType), "json") {
 		defaultName = "response.json"
 	}
-	path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: "Save response", DefaultPath: defaultName})
+	path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: locales.SaveResponse(), DefaultPath: defaultName})
 	if err != nil {
 		a.publish(func() { tab.Error = err.Error() })
 		return
@@ -990,7 +992,7 @@ func (a *App) addHistory(req httpclient.Request, status string, requestedAt, res
 func (a *App) metadataText() string {
 	tab := a.tab()
 	if tab.Response == nil {
-		return "No response yet."
+		return locales.NoResponseYet()
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Status: %s\n", tab.Response.Status)
@@ -1029,7 +1031,7 @@ func bodyModeDescription(mode string) string {
 	case bodyModeFormData, "multipart":
 		return "multipart/form-data"
 	default:
-		return "empty body"
+		return locales.EmptyBody()
 	}
 }
 
@@ -1090,17 +1092,17 @@ func (tab *Tab) syncRawBodySample() {
 func rawBodyLabel(kind string) string {
 	switch strings.ToLower(strings.TrimSpace(kind)) {
 	case "json":
-		return "JSON body"
+		return locales.RawBodyJSON()
 	case "xml":
-		return "XML body"
+		return locales.RawBodyXML()
 	case "html":
-		return "HTML body"
+		return locales.RawBodyHTML()
 	case "javascript":
-		return "JavaScript body"
+		return locales.RawBodyJavaScript()
 	case "text":
-		return "Text body"
+		return locales.RawBodyText()
 	}
-	return "Body"
+	return locales.TabBody()
 }
 
 func actionLabel(running bool) string {
@@ -1144,21 +1146,21 @@ func shortPath(path string) string {
 
 func formatHistoryTime(value time.Time) string {
 	if value.IsZero() {
-		return "unknown"
+		return locales.TimeUnknown()
 	}
 	return value.Local().Format("2006-01-02 15:04:05")
 }
 
 func formatClock(value time.Time) string {
 	if value.IsZero() {
-		return "unknown"
+		return locales.TimeUnknown()
 	}
 	return value.Local().Format("15:04:05.000")
 }
 
 func formatFullTime(value time.Time) string {
 	if value.IsZero() {
-		return "unknown"
+		return locales.TimeUnknown()
 	}
 	return value.Local().Format(time.RFC3339Nano)
 }

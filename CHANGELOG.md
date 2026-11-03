@@ -8,9 +8,11 @@ All notable changes to NanoAPI are documented here. The project follows
 本次更新接入界面语言国际化，支持中英文实时切换。
 
 ### ✨ 新增功能
-- **语言国际化（i18n）**：基于 MyGo 原生 i18n 能力，新增 `locales/en.json` 与 `locales/zh-Hans.json` 两套消息目录（ICU MessageFormat），由 `go tool mygo generate` 生成类型化访问函数。界面文字不再硬编码。当前共 76 条消息。
+- **语言国际化（i18n）**：基于 MyGo 原生 i18n 能力，新增 `locales/en.json` 与 `locales/zh-Hans.json` 两套消息目录（ICU MessageFormat），由 `go tool mygo generate` 生成类型化访问函数。界面文字不再硬编码。当前共 197 条消息，界面文案已全量接入。
 - **中英文切换**：Appearance 新增「语言」下拉，可在「跟随系统 / English / 简体中文」之间选择，**切换即时生效，无需重启**。
 - **外观面板已完整接入翻译**：面板标题与说明、主题（浅色／深色）、字体、字号、标签颜色、请求标签布局（多行／单行）、背景方式（纯色／图片）、背景颜色、背景图片及其选择与清除按钮、关闭窗口选项，全部随语言切换。
+- **请求区与响应区文案已接入翻译**：保存/删除请求两个对话框、查询参数与表单与 form-data 行编辑器（添加/启用/删除行、选择文件、未选择文件）、请求体编辑器（含「将以 X 发送」说明与 JSON/XML/HTML/JavaScript/纯文本 标签）、文件上传、选项标签、响应预览的全部不可用提示、历史导入导出按钮、超时增减按钮、标签关闭按钮、历史搜索框。
+- **鉴权与分组文案已接入翻译**：Auth 标签页的类型下拉（无 / Bearer Token / Basic 认证 / API 密钥）、用户名、密码、键名、键值、发送到，以及各模式的行为说明；分组的新建/编辑/删除按钮与对话框、校验提示、「全部分组」「未分组」。鉴权模式的选择器存的是 `"Bearer token"` 等英文原值，只有显示名跟随语言。
 - **框架文案自动跟随**：选中简体中文后，MyGo 自身的控件、文件对话框与原生菜单同步为官方中文译文。
 - **系统托盘菜单随语言重建**：托盘的「显示 / 退出」条目会跟着语言改变，不再是固定中文。
 
@@ -20,7 +22,9 @@ All notable changes to NanoAPI are documented here. The project follows
 - **首帧多余写盘**：外观各选项的变更检测初值为空，启动首帧会误判为「用户改过」而保存一次设置，现已在加载配置后播种。
 
 ### 🔧 说明
-- 本期（P1）共接入 76 条消息；其余约 135 处界面文字仍为英文硬编码，将在后续版本铺全。
+- 界面文案已全量接入消息目录（197 条）。剩余 23 处英文字面量为**刻意保留**：示例值占位符（如 `key`、`X-API-Key`、`eyJhbGciOi...`）、语法示例（`prefix-{{timestamp}}-{{random:12}}`）、协议与技术标识（`"GET"`、`application/x-www-form-urlencoded`、`User-Agent`、`Token`、窗口标题）、纯数据格式化。
+- 中文译名约定：`Header`、`Content-Type`、`Authorization`、`Bearer`、`Basic`、`Query`、`Token`、`Cookie`、`MIME`、`JSON`/`XML`/`HTML`/`JavaScript`、`base64` 与图片格式名保持英文不译。
+- 保存对话框预填的 `"Untitled request"` **确定保留英文**：它会写入 `requests.json` 成为持久化请求名，翻译会把当前语言烙进用户数据，并让重名检查把中英两种写法当成两个不同请求。标签页标题的「未命名」是纯显示、不落盘，仍随语言切换。
 - `requestTabs` / `responseTabs` 由包级变量改为函数：语言相关的列表必须每帧重新求值，否则会被冻结在进程启动时的语言上。
 - 存储格式未变：`tabBarDisplay`、`backgroundMode`、鉴权模式、`"默认分组"` 等**参与持久化与字面量比较的值一律不翻译**，仅翻译显示层。
 
