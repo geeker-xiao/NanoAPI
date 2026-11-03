@@ -14,6 +14,7 @@ import (
 type settingsData struct {
 	UserAgent       string  `json:"userAgent"`
 	ThemeMode       string  `json:"themeMode"`
+	Language        string  `json:"language"`
 	FontFamily      string  `json:"fontFamily"`
 	FontSize        float64 `json:"fontSize"`
 	BackgroundMode  string  `json:"backgroundMode"`
@@ -28,6 +29,7 @@ func (a *App) settingsSnapshot() settingsData {
 	return settingsData{
 		UserAgent:       a.tab().UserAgent,
 		ThemeMode:       a.ThemeMode,
+		Language:        a.Language,
 		FontFamily:      a.FontFamily,
 		FontSize:        a.FontSize,
 		BackgroundMode:  a.BackgroundMode,
@@ -67,6 +69,12 @@ func (a *App) loadSettings() {
 	if saved.ThemeMode == "System" || saved.ThemeMode == "Light" || saved.ThemeMode == "Dark" {
 		a.ThemeMode = saved.ThemeMode
 	}
+	// A settings file from before this feature has no language at all, and an
+	// unknown tag would ask MyGo for a language the app has no catalog for, so
+	// anything unrecognised leaves the app following the system.
+	if isKnownLanguage(saved.Language) {
+		a.Language = saved.Language
+	}
 	if saved.FontFamily != "" {
 		a.FontFamily = saved.FontFamily
 	}
@@ -93,6 +101,17 @@ func (a *App) loadSettings() {
 	if legacy {
 		_ = writeSettings(a.settingsSnapshot())
 	}
+}
+
+// markSettingsApplied seeds the pickers that notice a change by comparing
+// against what was last applied. Without this they would all start empty, and
+// the first frame would read the loaded settings as a fresh pick and save the
+// file for no reason.
+func (a *App) markSettingsApplied() {
+	a.themeApplied = a.ThemeMode
+	a.tabBarDisplayApplied = a.TabBarDisplay
+	a.backgroundModeApplied = a.BackgroundMode
+	a.languageApplied = a.Language
 }
 
 func (a *App) queueSaveSettings() {

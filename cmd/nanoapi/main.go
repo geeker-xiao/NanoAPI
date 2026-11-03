@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"nanoapi/internal/httpclient"
+	"nanoapi/locales"
 )
 
 var (
@@ -63,6 +64,7 @@ type App struct {
 	TabBarDisplay string
 
 	ThemeMode        string
+	Language         string
 	FontFamily       string
 	FontSize         float64
 	BackgroundMode   string
@@ -104,6 +106,16 @@ type App struct {
 	// can be restored or quit from there.
 	CloseToTray bool
 
+	// languageApplied is the language already handed to MyGo, so a pick is
+	// noticed once rather than on every frame.
+	languageApplied string
+	// The pickers that store one string and show another have no OnChange of
+	// their own, so each keeps the value it last applied and notices a pick on
+	// the next frame.
+	themeApplied          string
+	tabBarDisplayApplied  string
+	backgroundModeApplied string
+
 	// win and tray are kept so tray menu actions can show the window or quit.
 	win  *mygo.Window
 	tray *mygo.Tray
@@ -123,6 +135,7 @@ func main() {
 		ActiveTab:        0,
 		SelectedGroup:    "all",
 		ThemeMode:        "System",
+		Language:         "System",
 		FontFamily:       "System",
 		FontSize:         14,
 		BackgroundMode:   "Solid color",
@@ -132,6 +145,7 @@ func main() {
 		SavedSectionOpen: true,
 	}
 	app.loadSettings()
+	app.markSettingsApplied()
 	// Restored tabs replace the starter one, so quitting comes back to what
 	// was being worked on.
 	app.loadRequests()
@@ -169,23 +183,23 @@ func main() {
 
 		// System tray: always present so the window can be restored or the
 		// app quit, whichever the close-button behaviour.
-		if tray, err := mygo.NewTray(mygo.TrayOptions{Icon: appIconPNG, ToolTip: "NanoAPI"}); err == nil {
+		if tray, err := mygo.NewTray(mygo.TrayOptions{Icon: appIconPNG, ToolTip: locales.AppName()}); err == nil {
 			app.tray = tray
-			tray.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-				{Label: "显示 NanoAPI", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
-					win.Show()
-					win.Focus()
-				}},
-				mygo.Separator(),
-				{Label: "退出 NanoAPI", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
-					app.quitApp()
-				}},
-			}))
+			app.installTrayMenu(win)
 			tray.OnClick(func() {
 				win.Show()
 				win.Focus()
 			})
 		}
+
+		// The tray menu is built once by the app, not by MyGo, so MyGo's own
+		// relabelling on a language change never reaches it: rebuild it here.
+		mygo.App.OnLocaleChanged(func(string) {
+			app.installTrayMenu(win)
+		})
+		// The saved preference wins over what the framework kept from the last
+		// run, so settings.json stays the single place the app's settings live.
+		app.applyLanguage()
 
 		update := win.Update
 		startRequestAutosave(update, app.queueSaveRequests)
@@ -282,23 +296,23 @@ func (a *App) saveRequestDialogs(c *ui.Context, t *ui.Theme) {
 // saveTooltip explains what Save does, and when it will update an entry.
 func saveTooltip(saved bool) string {
 	if saved {
-		return "Update the saved copy of this request, or rename it"
+		return locales.SaveUpdateTooltip()
 	}
-	return "File this request under a name"
+	return locales.SaveNewTooltip()
 }
 
 // appHeader is the app-wide bar: it holds nothing that belongs to one request,
 // so switching tabs only ever changes the pane on the right.
 func (a *App) appHeader(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "NanoAPI").FontSize(20).Bold()
-		ui.Text(c, "Native HTTP client").TextColor(t.TextMuted)
+		ui.Text(c, locales.AppName()).FontSize(20).Bold()
+		ui.Text(c, locales.Tagline()).TextColor(t.TextMuted)
 		ui.Spacer(c)
 		if a.Error != "" {
 			ui.Text(c, a.Error).TextColor(t.Danger).SingleLine()
 		}
-		if ui.Button(c, "").Label("Appearance").Tooltip("Edit how the app looks").Children(func() {
-			ui.Text(c, "Appearance").SingleLine()
+		if ui.Button(c, "").Label(locales.Appearance()).Tooltip(locales.AppearanceTooltip()).Children(func() {
+			ui.Text(c, locales.Appearance()).SingleLine()
 		}).Clicked() {
 			a.ShowAppearance = !a.ShowAppearance
 		}
@@ -320,10 +334,10 @@ func (a *App) requestBar(c *ui.Context, t *ui.Theme) {
 		if ui.PrimaryButton(c, "").Label(actionLabel(tab.Running)).Tooltip(actionTooltip(tab.Running)).MinWidth(t.Rem(6.5)).Padding(t.Space(2), t.Space(3)).Radius(t.Radius).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			if tab.Running {
 				ui.Icon(c, iconCancel)
-				ui.Text(c, "Cancel").SingleLine()
+				ui.Text(c, locales.Cancel()).SingleLine()
 			} else {
 				ui.Icon(c, iconSend)
-				ui.Text(c, "Send").SingleLine()
+				ui.Text(c, locales.Send()).SingleLine()
 			}
 		}).Clicked() {
 			if tab.Running {
@@ -333,19 +347,19 @@ func (a *App) requestBar(c *ui.Context, t *ui.Theme) {
 			}
 		}
 		// Save files the request under a name so it can be run again later.
-		if ui.Button(c, "").Label("Save request").Tooltip(saveTooltip(tab.SavedID != "")).Padding(t.Space(2), t.Space(2.5)).Radius(t.Radius).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+		if ui.Button(c, "").Label(locales.SaveRequest()).Tooltip(saveTooltip(tab.SavedID != "")).Padding(t.Space(2), t.Space(2.5)).Radius(t.Radius).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ui.Icon(c, iconSave)
-			ui.Text(c, "Save").SingleLine()
+			ui.Text(c, locales.Save()).SingleLine()
 		}).Clicked() {
 			a.openSaveDialog()
 		}
 	})
 	ui.Row(c).FillWidth().Gap(t.Space(2.5)).Children(func() {
-		ui.Text(c, "Timeout").TextColor(t.TextMuted)
+		ui.Text(c, locales.Timeout()).TextColor(t.TextMuted)
 		a.timeoutStepper(c)
-		ui.Checkbox(c, &tab.FollowRedirects, "Follow redirects")
-		ui.Checkbox(c, &tab.Stream, "Stream response")
-		ui.Checkbox(c, &tab.Download, "Download to file")
+		ui.Checkbox(c, &tab.FollowRedirects, locales.FollowRedirects())
+		ui.Checkbox(c, &tab.Stream, locales.StreamResponse())
+		ui.Checkbox(c, &tab.Download, locales.DownloadToFile())
 		if tab.Download {
 			if ui.Button(c, "").Label("Choose destination").Tooltip("Choose where to save the response").Children(func() {
 				ui.Icon(c, iconDownload)
@@ -377,7 +391,7 @@ func (a *App) sidebar(c *ui.Context, t *ui.Theme) {
 				a.savedSection(c, t)
 				items := a.filteredHistory()
 				ui.Row(c).FillWidth().Children(func() {
-					ui.Text(c, "History").Bold()
+					ui.Text(c, locales.History()).Bold()
 					ui.Spacer(c)
 					ui.Textf(c, "%d", len(items)).TextColor(t.TextMuted)
 				})
@@ -424,15 +438,30 @@ func (a *App) sidebar(c *ui.Context, t *ui.Theme) {
 
 // requestTabs are the detail sections of one request. Appearance is not among
 // them: it belongs to the whole app and lives behind the header button.
-var requestTabs = []string{"Params", "Headers", "Auth", "Body", "Upload", "Options"}
+//
+// It is a function rather than a var, unlike the other lists of options: these
+// labels are said in the language the app shows, and a package-level value would
+// freeze them at whatever language the process happened to start in. The tab
+// stored on a request is its number, not its label, so translating them is safe.
+func requestTabs() []string {
+	return []string{
+		locales.TabParams(), locales.TabHeaders(), locales.TabAuth(),
+		locales.TabBody(), locales.TabUpload(), locales.TabOptions(),
+	}
+}
+
+// responseTabs are the views of a response, for the same reason as requestTabs.
+func responseTabs() []string {
+	return []string{locales.TabPreview(), locales.TabBody(), locales.TabHeaders(), locales.TabMetadata()}
+}
 
 func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 	tab := a.tab()
 	ui.Column(c).Grow(1).FillHeight().Gap(10).Children(func() {
 		a.tabBar(c, t)
 		if a.ShowAppearance {
-			if ui.Button(c, "").Label("Back to the request").Tooltip("Close the appearance settings").Children(func() {
-				ui.Text(c, "Back to the request").SingleLine()
+			if ui.Button(c, "").Label(locales.BackToRequest()).Tooltip(locales.BackToRequestTooltip()).Children(func() {
+				ui.Text(c, locales.BackToRequest()).SingleLine()
 			}).Clicked() {
 				a.ShowAppearance = false
 			}
@@ -441,7 +470,7 @@ func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 		}
 		a.requestBar(c, t)
 		ui.Divider(c)
-		coloredTabs(c, &tab.RequestTab, requestTabs, a.TabColor)
+		coloredTabs(c, &tab.RequestTab, requestTabs(), a.TabColor)
 		// The request body can grow long (many param/header rows), so it
 		// scrolls instead of stealing the room the response panel needs when
 		// the window is short.
@@ -639,7 +668,7 @@ func (a *App) optionsEditor(c *ui.Context, t *ui.Theme) {
 func (a *App) responsePanel(c *ui.Context, t *ui.Theme) {
 	tab := a.tab()
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, "Response").Bold()
+		ui.Text(c, locales.Response()).Bold()
 		if tab.Status != "" {
 			color := t.TextMuted
 			if strings.HasPrefix(tab.Status, "2") {
@@ -651,16 +680,16 @@ func (a *App) responsePanel(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Text(c, tab.ResponseMeta).TextColor(t.TextMuted)
 		ui.Spacer(c)
-		if ui.Button(c, "").Label("Copy response").Tooltip("Copy response body").Disabled(tab.Response == nil).Children(func() {
+		if ui.Button(c, "").Label(locales.CopyResponse()).Tooltip(locales.CopyResponseTooltip()).Disabled(tab.Response == nil).Children(func() {
 			ui.Icon(c, iconCopy)
-			ui.Text(c, "Copy").SingleLine()
+			ui.Text(c, locales.Copy()).SingleLine()
 		}).Clicked() {
 			c.WriteClipboard(tab.ResponseText)
 			c.Toast("Response copied")
 		}
-		if ui.Button(c, "").Label("Save response").Tooltip("Save response body to a file").Disabled(tab.Response == nil || tab.Response.SavedTo != "").Children(func() {
+		if ui.Button(c, "").Label(locales.SaveResponse()).Tooltip(locales.SaveResponseTooltip()).Disabled(tab.Response == nil || tab.Response.SavedTo != "").Children(func() {
 			ui.Icon(c, iconSave)
-			ui.Text(c, "Save").SingleLine()
+			ui.Text(c, locales.Save()).SingleLine()
 		}).Clicked() {
 			go a.saveResponse()
 		}
@@ -668,7 +697,7 @@ func (a *App) responsePanel(c *ui.Context, t *ui.Theme) {
 	if tab.Error != "" {
 		ui.Text(c, tab.Error).TextColor(t.Danger).Selectable()
 	}
-	coloredTabs(c, &tab.ResponseTab, []string{"Preview", "Body", "Headers", "Metadata"}, a.TabColor)
+	coloredTabs(c, &tab.ResponseTab, responseTabs(), a.TabColor)
 	// Keep the response reachable at any window height: it always gets at
 	// least a little room and scrolls its own content.
 	ui.Column(c).Grow(1).FillWidth().MinHeight(t.Rem(8)).Children(func() {
@@ -676,9 +705,9 @@ func (a *App) responsePanel(c *ui.Context, t *ui.Theme) {
 		case 0:
 			a.responsePreviewView(c, t)
 		case 1:
-			ui.TextArea(c, &tab.ResponseText).ReadOnly(true).Font("monospace").Grow(1).FillHeight().Placeholder("Send a request to see its response")
+			ui.TextArea(c, &tab.ResponseText).ReadOnly(true).Font("monospace").Grow(1).FillHeight().Placeholder(locales.ResponseBodyPlaceholder())
 		case 2:
-			ui.TextArea(c, &tab.HeadersText).ReadOnly(true).Font("monospace").Grow(1).FillHeight().Placeholder("Response headers")
+			ui.TextArea(c, &tab.HeadersText).ReadOnly(true).Font("monospace").Grow(1).FillHeight().Placeholder(locales.ResponseHeadersPlaceholder())
 		case 3:
 			ui.Scroll(c).Grow(1).FillHeight().Children(func() {
 				ui.Text(c, a.metadataText()).Font("monospace").Selectable()
@@ -1076,16 +1105,16 @@ func rawBodyLabel(kind string) string {
 
 func actionLabel(running bool) string {
 	if running {
-		return "Cancel request"
+		return locales.CancelRequest()
 	}
-	return "Send request"
+	return locales.SendRequest()
 }
 
 func actionTooltip(running bool) string {
 	if running {
-		return "Cancel the current request"
+		return locales.CancelTooltip()
 	}
-	return "Send the request"
+	return locales.SendTooltip()
 }
 
 func compactURL(raw string) string {
@@ -1105,7 +1134,7 @@ func shortURL(raw string) string {
 
 func shortPath(path string) string {
 	if path == "" {
-		return "Not selected"
+		return locales.NotSelected()
 	}
 	if len(path) > 54 {
 		return "..." + path[len(path)-51:]

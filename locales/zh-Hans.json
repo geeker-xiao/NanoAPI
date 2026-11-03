@@ -1,0 +1,99 @@
+{
+  "@@locale": "zh-Hans",
+
+  "appName": "NanoAPI",
+
+  "tagline": "原生 HTTP 客户端",
+
+  "appearance": "外观",
+  "appearanceTooltip": "调整应用的外观",
+  "backToRequest": "返回请求",
+
+  "send": "发送",
+  "sendRequest": "发送请求",
+  "cancel": "取消",
+  "cancelRequest": "取消请求",
+  "save": "保存",
+  "saveRequest": "保存请求",
+  "sendTooltip": "发送该请求",
+  "cancelTooltip": "取消当前请求",
+  "saveNewTooltip": "将该请求按名称保存",
+  "saveUpdateTooltip": "更新已保存的副本，或重命名",
+
+  "timeout": "超时",
+  "seconds": "秒",
+  "followRedirects": "跟随重定向",
+  "streamResponse": "流式响应",
+  "downloadToFile": "下载到文件",
+
+  "tabParams": "参数",
+  "tabHeaders": "Header",
+  "tabAuth": "鉴权",
+  "tabBody": "请求体",
+  "tabUpload": "上传",
+  "tabOptions": "选项",
+
+  "tabPreview": "预览",
+  "tabMetadata": "元信息",
+
+  "response": "响应",
+  "copy": "复制",
+  "copyResponse": "复制响应",
+  "copyResponseTooltip": "复制响应体",
+  "saveResponse": "保存响应",
+  "saveResponseTooltip": "将响应体保存为文件",
+  "responseBodyPlaceholder": "发送请求后在此查看响应",
+  "responseHeadersPlaceholder": "响应 Header",
+
+  "history": "历史记录",
+  "savedRequestsCount": "{count, plural, other {已保存的请求（#）}}",
+  "noSavedRequests": "保存请求后会出现在这里。",
+
+  "newRequest": "新建",
+  "newRequestTooltip": "新建一个请求标签页",
+  "contextDuplicate": "复制",
+  "contextResend": "重新发起请求",
+  "contextClose": "关闭",
+
+  "language": "语言",
+  "followSystem": "跟随系统",
+
+  "trayShow": "显示 {app}",
+  "trayQuit": "退出 {app}",
+
+  "appearanceNote": "改动立即生效，并保存在本机。",
+  "backToRequestTooltip": "关闭外观设置",
+
+  "theme": "主题",
+  "themeLight": "浅色",
+  "themeDark": "深色",
+
+  "font": "字体",
+  "fontSize": "字号",
+
+  "tabColor": "标签颜色",
+
+  "requestTabsField": "请求标签布局",
+  "requestTabsFieldHint": "多行会让标签按需要折到多行，method 显示在名称上方；单行只占一行并可横向滚动，关闭按钮收在标签内。",
+  "tabBarMultiLineLabel": "多行",
+  "tabBarSingleLineLabel": "单行",
+
+  "backgroundMode": "背景方式",
+  "backgroundSolid": "纯色",
+  "backgroundImageOption": "图片",
+  "backgroundColor": "背景颜色",
+  "backgroundImageField": "背景图片",
+  "backgroundImageHint": "图片会被裁切为铺满整个窗口；纯色仍可作为回落方案。",
+
+  "chooseImage": "选择背景图片",
+  "chooseImageTooltip": "选择 PNG、JPEG、GIF、WebP 或 BMP 背景图",
+  "choose": "选择",
+  "clearBackground": "清除背景图片",
+  "clearBackgroundTooltip": "移除当前背景图片",
+  "clear": "清除",
+  "notSelected": "未选择",
+
+  "closeWindowAction": "关闭窗口时",
+  "closeToTrayLabel": "最小化到系统托盘而不是退出",
+  "closeToTrayHint": "勾选后，点击关闭按钮会隐藏到系统托盘，之后可从托盘图标恢复窗口或退出应用；取消勾选则点击关闭直接退出。"
+}

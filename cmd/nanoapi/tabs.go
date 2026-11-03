@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"nanoapi/internal/httpclient"
+	"nanoapi/locales"
 )
 
 // Tab is one open request: its draft, its options and the response it got.
@@ -240,14 +241,14 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme) {
 			}
 			// Right-clicking a tab opens a menu to copy, re-send or close it.
 			chip.ContextMenu(func(m *ui.Menu) {
-				if m.Item("复制").Chosen() {
+				if m.Item(locales.ContextDuplicate()).Chosen() {
 					duplicateIndex = i
 				}
-				if m.Item("重新发起请求").Disabled(tab.Running).Chosen() {
+				if m.Item(locales.ContextResend()).Disabled(tab.Running).Chosen() {
 					resendIndex = i
 				}
 				m.Separator()
-				if m.Item("关闭").Chosen() {
+				if m.Item(locales.ContextClose()).Chosen() {
 					closeIndex = i
 				}
 			})
@@ -264,11 +265,11 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme) {
 				a.tabCloseButton(c, t, i, &closeIndex)
 			}
 		}
-		newButton := ui.Button(c, "").Label("New request").Tooltip("Open a new request tab").Padding(6, 8).Radius(t.Radius)
+		newButton := ui.Button(c, "").Label(locales.NewRequestTooltip()).Tooltip(locales.NewRequestTooltip()).Padding(6, 8).Radius(t.Radius)
 		newButton.Children(func() {
 			ui.Icon(c, iconPlus).FontSize(14).TextColor(t.TextMuted)
 			if !single {
-				ui.Text(c, "New").SingleLine()
+				ui.Text(c, locales.NewRequest()).SingleLine()
 			}
 		})
 		if newButton.Clicked() {

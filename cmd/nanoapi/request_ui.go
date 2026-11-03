@@ -4,6 +4,8 @@ import (
 	"math"
 
 	"github.com/egoist/mygo/ui"
+
+	"nanoapi/locales"
 )
 
 func (a *App) headersEditor(c *ui.Context, t *ui.Theme) {
@@ -81,39 +83,122 @@ func readableTextColor(t *ui.Theme, color ui.Color) ui.Color {
 	return t.Text
 }
 
+// labeledOption is one choice whose stored value is not the name shown for it.
+// The value goes into settings.json and is compared by literal, so it cannot be
+// translated; the name must be.
+type labeledOption struct {
+	value string
+	label string
+}
+
+// The three pickers below say their choices in the language the app shows. Each
+// is a function, for the same reason requestTabs is: a package-level value would
+// freeze the labels at whatever language the process happened to start in, and
+// they would not move when the reader switches.
+func themeOptions() []labeledOption {
+	return []labeledOption{
+		{"System", locales.FollowSystem()},
+		{"Light", locales.ThemeLight()},
+		{"Dark", locales.ThemeDark()},
+	}
+}
+
+func tabBarLayoutOptions() []labeledOption {
+	return []labeledOption{
+		{tabBarMultiLine, locales.TabBarMultiLineLabel()},
+		{tabBarSingleLine, locales.TabBarSingleLineLabel()},
+	}
+}
+
+func backgroundModeOptions() []labeledOption {
+	return []labeledOption{
+		{"Solid color", locales.BackgroundSolid()},
+		{"Image", locales.BackgroundImageOption()},
+	}
+}
+
+// optionLabel finds the name a value is shown under, or the value itself when
+// nothing claims it.
+func optionLabel(options []labeledOption, value string) string {
+	for _, option := range options {
+		if option.value == value {
+			return option.label
+		}
+	}
+	return value
+}
+
+// optionSelect draws a picker that stores value but shows a label. ui.Select
+// cannot do this: it writes back the very string it displays, which would put a
+// translated name into settings.json. SelectBase has no OnChange of its own, so
+// the pick is noticed on the frame after it by comparing against applied, and
+// onChange runs there.
+func optionSelect(c *ui.Context, value *string, applied *string, width float32, options []labeledOption, onChange func()) {
+	t := c.Theme()
+	sel := ui.SelectBase(c, value)
+	sel.Trigger.Width(width).Padding(t.Space(1.5), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(t.Radius)
+	if sel.Trigger.Hovered() {
+		sel.Trigger.Background(t.SurfaceHover)
+	}
+	sel.Trigger.Children(func() {
+		ui.Text(c, optionLabel(options, *value)).SingleLine()
+		ui.Spacer(c)
+		ui.Icon(c, iconChevronDown).FontSize(t.FontSize).TextColor(t.TextMuted)
+	})
+	sel.Popup(func(panel ui.Element) {
+		panel.Padding(t.Space(1)).Background(t.Surface).Border(1, t.Border).Radius(t.Radius)
+		for _, option := range options {
+			item := sel.Item(option.value).Padding(t.Space(1.75), t.Space(2.25)).Gap(t.Space(2)).Radius(t.Radius)
+			if item.Highlighted() {
+				item.Background(t.SurfaceHover)
+			}
+			item.Children(func() {
+				ui.Text(c, option.label).SingleLine()
+			})
+		}
+	})
+	if *value != *applied {
+		*applied = *value
+		onChange()
+	}
+}
+
 func (a *App) appearanceEditor(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, "Appearance").Bold()
-		ui.Text(c, "Changes apply immediately and are kept on this device.").TextColor(t.TextMuted)
+		ui.Text(c, locales.Appearance()).Bold()
+		ui.Text(c, locales.AppearanceNote()).TextColor(t.TextMuted)
 	})
 
 	ui.Form(c, func() {
-		ui.Field(c, "Theme", func() {
-			ui.Select(c, &a.ThemeMode, []string{"System", "Light", "Dark"}).Width(180).OnChange(a.queueSaveSettings)
+		ui.Field(c, locales.Theme(), func() {
+			optionSelect(c, &a.ThemeMode, &a.themeApplied, t.Rem(12.9), themeOptions(), a.queueSaveSettings)
 		})
-		ui.Field(c, "Font", func() {
+		ui.Field(c, locales.Language(), func() {
+			a.languageSelect(c)
+		})
+		ui.Field(c, locales.Font(), func() {
 			ui.Select(c, &a.FontFamily, a.fontOptions()).Width(240).OnChange(a.queueSaveSettings)
 		})
-		ui.Field(c, "Font size", func() {
+		ui.Field(c, locales.FontSize(), func() {
 			ui.NumberInput(c, &a.FontSize, 8, 32, 1).Width(104).OnChange(a.queueSaveSettings)
 		})
-		ui.Field(c, "Tab color", func() {
+		ui.Field(c, locales.TabColor(), func() {
 			ui.Row(c).Height(28).AlignItems(ui.Center).Children(func() {
-				compactColorWell(c, &a.TabColor, "Tab color").OnChange(a.queueSaveSettings)
+				compactColorWell(c, &a.TabColor, locales.TabColor()).OnChange(a.queueSaveSettings)
 			})
 		})
-		ui.Field(c, tabBarFieldLabel, func() {
-			ui.Select(c, &a.TabBarDisplay, tabBarModes).Width(180).OnChange(a.queueSaveSettings)
-		}).Description(tabBarFieldDescription)
-		ui.Field(c, "Background mode", func() {
-			ui.Select(c, &a.BackgroundMode, []string{"Solid color", "Image"}).Width(180).Height(28).OnChange(a.queueSaveSettings)
+		ui.Field(c, locales.RequestTabsField(), func() {
+			optionSelect(c, &a.TabBarDisplay, &a.tabBarDisplayApplied, t.Rem(12.9), tabBarLayoutOptions(), a.queueSaveSettings)
+		}).Description(locales.RequestTabsFieldHint())
+		ui.Field(c, locales.BackgroundMode(), func() {
+			optionSelect(c, &a.BackgroundMode, &a.backgroundModeApplied, t.Rem(12.9), backgroundModeOptions(), a.queueSaveSettings)
 		})
-		ui.Field(c, "Background color", func() {
+		ui.Field(c, locales.BackgroundColor(), func() {
 			ui.Row(c).Height(28).AlignItems(ui.Center).Children(func() {
-				compactColorWell(c, &a.BackgroundColor, "Background color").OnChange(a.queueSaveSettings)
+				compactColorWell(c, &a.BackgroundColor, locales.BackgroundColor()).OnChange(a.queueSaveSettings)
 			})
 		})
-		ui.Field(c, "Background image", func() {
+		ui.Field(c, locales.BackgroundImageField(), func() {
 			ui.Row(c).FillWidth().Gap(8).Children(func() {
 				if a.backgroundBitmap != nil {
 					ui.Image(c, a.backgroundBitmap).Size(72, 40).Fit(ui.Cover).Radius(6)
@@ -121,32 +206,25 @@ func (a *App) appearanceEditor(c *ui.Context, t *ui.Theme) {
 					ui.Box(c).Size(72, 40).Background(t.Surface).Border(1, t.Border).Radius(6)
 				}
 				ui.Text(c, shortPath(a.BackgroundPath)).Grow(1).SingleLine()
-				if ui.Button(c, "").Label("Choose image").Tooltip("Choose a PNG, JPEG, GIF, WebP, or BMP background").Children(func() {
+				if ui.Button(c, "").Label(locales.ChooseImage()).Tooltip(locales.ChooseImageTooltip()).Children(func() {
 					ui.Icon(c, iconUpload)
-					ui.Text(c, "Choose").SingleLine()
+					ui.Text(c, locales.Choose()).SingleLine()
 				}).Clicked() {
 					go a.chooseBackgroundImage()
 				}
-				if ui.Button(c, "").Label("Clear background image").Tooltip("Remove the background image").Disabled(a.BackgroundPath == "").Children(func() {
+				if ui.Button(c, "").Label(locales.ClearBackground()).Tooltip(locales.ClearBackgroundTooltip()).Disabled(a.BackgroundPath == "").Children(func() {
 					ui.Icon(c, iconCancel)
-					ui.Text(c, "Clear").SingleLine()
+					ui.Text(c, locales.Clear()).SingleLine()
 				}).Clicked() {
 					a.clearBackgroundImage()
 				}
 			})
-		}).Description("Image is cropped to cover the window; solid color remains available as a fallback.")
-		ui.Field(c, "关闭窗口时", func() {
-			ui.Checkbox(c, &a.CloseToTray, "最小化到系统托盘而不是退出").OnChange(a.queueSaveSettings)
-		}).Description("勾选后，点击关闭按钮会隐藏到系统托盘，之后可从托盘图标恢复窗口或退出应用；取消勾选则点击关闭直接退出。")
+		}).Description(locales.BackgroundImageHint())
+		ui.Field(c, locales.CloseWindowAction(), func() {
+			ui.Checkbox(c, &a.CloseToTray, locales.CloseToTrayLabel()).OnChange(a.queueSaveSettings)
+		}).Description(locales.CloseToTrayHint())
 	})
 }
-
-// tabBarFieldLabel and tabBarFieldDescription explain the two ways the request
-// tabs can be laid out, offered in Appearance.
-const (
-	tabBarFieldLabel       = "Request tabs"
-	tabBarFieldDescription = "Multi-line wraps the tabs onto as many rows as they need, showing method above name. Single line keeps one compact row that scrolls sideways, with the close button inside each tab."
-)
 
 func compactColorWell(c *ui.Context, value *ui.Color, label string) ui.Element {
 	return ui.ColorWell(c, value).Label(label).Size(46, 30).MinWidth(46).MaxWidth(46).Height(30).Shrink(0).AlignSelf(ui.Center)

@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+
+	"nanoapi/locales"
 )
 
 var (
@@ -107,7 +109,7 @@ func (a *App) timeoutStepper(c *ui.Context) {
 		}
 		// No fixed width: "seconds" takes the room its font needs, so it stops
 		// wrapping and pushes what follows further right as the font grows.
-		ui.Text(c, "seconds").AlignSelf(ui.Center).TextColor(t.TextMuted).SingleLine()
+		ui.Text(c, locales.Seconds()).AlignSelf(ui.Center).TextColor(t.TextMuted).SingleLine()
 	})
 }
 

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"nanoapi/locales"
 )
 
 // SavedRequest is a stored request: everything needed to run it again, plus
@@ -283,9 +285,9 @@ func writeRequestsFile(file requestsFile) error {
 func (a *App) savedSection(c *ui.Context, t *ui.Theme) {
 	openID := ""
 	deleteID := ""
-	ui.Collapsible(c, fmt.Sprintf("Saved requests (%d)", len(a.SavedRequests)), &a.SavedSectionOpen, func() {
+	ui.Collapsible(c, locales.SavedRequestsCount(len(a.SavedRequests)), &a.SavedSectionOpen, func() {
 		if len(a.SavedRequests) == 0 {
-			ui.Text(c, "Save a request to keep it here.").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, locales.NoSavedRequests()).FontSize(12).TextColor(t.TextMuted)
 			return
 		}
 		// The sidebar scrolls as a whole, so the groups just flow here and
