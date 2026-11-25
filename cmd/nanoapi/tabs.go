@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"nanoapi/internal/httpclient"
+	"nanoapi/locales"
 )
 
 // Tab is one open request: its draft, its options and the response it got.
@@ -64,6 +65,11 @@ type Tab struct {
 	PreviewMessage string
 	ResponseImage  ui.ImageSource
 
+	// authApplied is the auth mode the picker last showed, so the picker that
+	// stores one literal and names it another notices a change. Nothing else
+	// depends on it: the Auth picker has no onChange to run.
+	authApplied string
+
 	cancel    context.CancelFunc
 	lastChunk time.Time
 }
@@ -97,7 +103,7 @@ func (tab *Tab) Title() string {
 	}
 	url := strings.TrimSpace(tab.URL)
 	if url == "" {
-		return "Untitled"
+		return locales.Untitled()
 	}
 	return strings.TrimSpace(tab.Method) + " " + shortURL(url)
 }
@@ -110,7 +116,7 @@ func (tab *Tab) ShortTitle() string {
 	}
 	url := strings.TrimSpace(tab.URL)
 	if url == "" {
-		return "Untitled"
+		return locales.Untitled()
 	}
 	return shortURL(url)
 }
@@ -240,14 +246,14 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme) {
 			}
 			// Right-clicking a tab opens a menu to copy, re-send or close it.
 			chip.ContextMenu(func(m *ui.Menu) {
-				if m.Item("复制").Chosen() {
+				if m.Item(locales.ContextDuplicate()).Chosen() {
 					duplicateIndex = i
 				}
-				if m.Item("重新发起请求").Disabled(tab.Running).Chosen() {
+				if m.Item(locales.ContextResend()).Disabled(tab.Running).Chosen() {
 					resendIndex = i
 				}
 				m.Separator()
-				if m.Item("关闭").Chosen() {
+				if m.Item(locales.ContextClose()).Chosen() {
 					closeIndex = i
 				}
 			})
@@ -264,11 +270,11 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme) {
 				a.tabCloseButton(c, t, i, &closeIndex)
 			}
 		}
-		newButton := ui.Button(c, "").Label("New request").Tooltip("Open a new request tab").Padding(6, 8).Radius(t.Radius)
+		newButton := ui.Button(c, "").Label(locales.NewRequestTooltip()).Tooltip(locales.NewRequestTooltip()).Padding(6, 8).Radius(t.Radius)
 		newButton.Children(func() {
 			ui.Icon(c, iconPlus).FontSize(14).TextColor(t.TextMuted)
 			if !single {
-				ui.Text(c, "New").SingleLine()
+				ui.Text(c, locales.NewRequest()).SingleLine()
 			}
 		})
 		if newButton.Clicked() {
@@ -320,7 +326,7 @@ func (a *App) tabButton(c *ui.Context, tab *Tab, index int, single bool, selectI
 
 // tabCloseButton drops a request from the tab bar.
 func (a *App) tabCloseButton(c *ui.Context, t *ui.Theme, index int, closeIndex *int) {
-	button := ui.Button(c, "").Label("Close tab").Tooltip("Close this request").Padding(4, 4).Radius(t.Radius)
+	button := ui.Button(c, "").Label(locales.CloseTab()).Tooltip(locales.CloseTabTooltip()).Padding(4, 4).Radius(t.Radius)
 	button.Children(func() {
 		ui.Icon(c, iconCancel).FontSize(12).TextColor(t.TextMuted)
 	})

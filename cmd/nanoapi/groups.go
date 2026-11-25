@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"nanoapi/locales"
 )
 
 type groupOption struct {
@@ -36,7 +38,8 @@ func (a *App) groupSelect(c *ui.Context) {
 }
 
 func (a *App) groupOptions() []groupOption {
-	options := []groupOption{{id: "all", name: "All groups"}, {id: "ungrouped", name: "Ungrouped"}}
+	// The ids are what the app compares and stores; the names follow the language.
+	options := []groupOption{{id: "all", name: locales.GroupAll()}, {id: "ungrouped", name: locales.GroupUngrouped()}}
 	for _, group := range a.Groups {
 		options = append(options, groupOption{id: group.ID, name: group.Name})
 	}
@@ -49,7 +52,7 @@ func (a *App) selectedGroupLabel() string {
 			return option.name
 		}
 	}
-	return "All groups"
+	return locales.GroupAll()
 }
 
 func (a *App) selectedGroup() (RequestGroup, bool) {
@@ -63,17 +66,17 @@ func (a *App) selectedGroup() (RequestGroup, bool) {
 
 func (a *App) groupTools(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).FillWidth().Gap(6).Children(func() {
-		if ui.Button(c, "").Label("New request group").Tooltip("Create a request group").Children(func() {
+		if ui.Button(c, "").Label(locales.GroupNew()).Tooltip(locales.GroupNewTooltip()).Children(func() {
 			ui.Icon(c, iconPlus)
-			ui.Text(c, "New").SingleLine()
+			ui.Text(c, locales.NewRequest()).SingleLine()
 		}).Clicked() {
 			a.openGroupDialog("")
 		}
 		_, selected := a.selectedGroup()
-		if ui.Button(c, "Edit").Label("Edit request group").Tooltip("Edit the selected group").Disabled(!selected).Clicked() {
+		if ui.Button(c, locales.Edit()).Label(locales.GroupEdit()).Tooltip(locales.GroupEditTooltip()).Disabled(!selected).Clicked() {
 			a.openGroupDialog(a.SelectedGroup)
 		}
-		if ui.Button(c, "").Label("Delete request group").Tooltip("Delete the selected group").Disabled(!selected).Children(func() {
+		if ui.Button(c, "").Label(locales.GroupDelete()).Tooltip(locales.GroupDeleteTooltip()).Disabled(!selected).Children(func() {
 			ui.Icon(c, iconTrash)
 		}).Clicked() {
 			a.GroupDeleteID = a.SelectedGroup
@@ -87,26 +90,26 @@ func (a *App) groupTools(c *ui.Context, t *ui.Theme) {
 
 func (a *App) groupDialogs(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.GroupDialogOpen, func() {
-		title := "New request group"
+		title := locales.GroupNew()
 		if a.GroupDraftID != "" {
-			title = "Edit request group"
+			title = locales.GroupEdit()
 		}
 		ui.Column(c).Width(440).Padding(20).Gap(12).Background(t.Surface).Border(1, t.Border).Radius(12).Children(func() {
 			ui.Text(c, title).FontSize(20).Bold()
-			ui.Field(c, "Name", func() {
-				ui.TextInput(c, &a.GroupDraftName).Placeholder("Group name").AutoFocus()
+			ui.Field(c, locales.FieldName(), func() {
+				ui.TextInput(c, &a.GroupDraftName).Placeholder(locales.GroupNamePlaceholder()).AutoFocus()
 			})
-			ui.Field(c, "Description", func() {
-				ui.TextArea(c, &a.GroupDraftDescription).Placeholder("What belongs in this group?").Lines(2, 4)
+			ui.Field(c, locales.FieldDescription(), func() {
+				ui.TextArea(c, &a.GroupDraftDescription).Placeholder(locales.GroupDescriptionPlaceholder()).Lines(2, 4)
 			})
 			if a.GroupDraftError != "" {
 				ui.Text(c, a.GroupDraftError).TextColor(t.Danger)
 			}
 			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					a.GroupDialogOpen = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if ui.PrimaryButton(c, locales.Save()).Clicked() {
 					a.saveGroupDraft()
 				}
 			})
@@ -115,14 +118,14 @@ func (a *App) groupDialogs(c *ui.Context, t *ui.Theme) {
 
 	ui.Modal(c, &a.GroupDeleteOpen, func() {
 		ui.Column(c).Width(400).Padding(20).Gap(12).Background(t.Surface).Border(1, t.Border).Radius(12).Children(func() {
-			ui.Text(c, "Delete request group?").FontSize(20).Bold()
-			ui.Text(c, "The group information will be removed. Requests in this group will move to Ungrouped.").TextColor(t.TextMuted)
+			ui.Text(c, locales.GroupDeleteQuestion()).FontSize(20).Bold()
+			ui.Text(c, locales.GroupDeleteNote()).TextColor(t.TextMuted)
 			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					a.GroupDeleteOpen = false
 					a.GroupDeleteID = ""
 				}
-				if ui.Button(c, "Delete").TextColor(t.Danger).Clicked() {
+				if ui.Button(c, locales.Delete()).TextColor(t.Danger).Clicked() {
 					a.deleteSelectedGroup()
 				}
 			})
@@ -146,12 +149,12 @@ func (a *App) openGroupDialog(groupID string) {
 func (a *App) saveGroupDraft() {
 	name := strings.TrimSpace(a.GroupDraftName)
 	if name == "" {
-		a.GroupDraftError = "Group name is required."
+		a.GroupDraftError = locales.GroupNameRequired()
 		return
 	}
 	for _, group := range a.Groups {
 		if group.ID != a.GroupDraftID && strings.EqualFold(group.Name, name) {
-			a.GroupDraftError = "Another group already uses this name."
+			a.GroupDraftError = locales.GroupNameTaken()
 			return
 		}
 	}
